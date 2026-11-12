@@ -159,7 +159,10 @@ static int shooting_screen()
      * modes not known here: anything but Canon's menu, playback or a dialog will do. The screen is turned
      * on when the film OS opens (film_ui_open). */
     if (!lv)
-        return gui_state == GUISTATE_IDLE && !gui_menu_shown() && !PLAY_MODE && !MENU_MODE && !is_movie_mode();
+        /* Canon's playback (GUI mode 2) can be gui_state idle: PLAY_MODE (PLAYMENU) misses it, and
+         * Trash there opened the film OS instead of erasing the picture (2026-11-12) */
+        return gui_state == GUISTATE_IDLE && !gui_menu_shown() && !PLAY_MODE && !MENU_MODE && !is_movie_mode()
+            && CURRENT_GUI_MODE != GUIMODE_PLAY;
 #endif
     return (lv || !FOS_LV_ONLY) && display_idle() && !is_movie_mode();
 }
