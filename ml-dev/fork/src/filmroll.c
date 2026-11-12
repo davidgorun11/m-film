@@ -2309,12 +2309,20 @@ static void load_films()
 static void startup_task()
 {
     /* wait (up to ~15 s) for ML to finish booting and LiveView to settle */
+    int last_state = -1, last_apo = -1;
     for (int i = 0; i < 150; i++)
     {
         if (ml_started && shooting_screen())
             break;
-        if (i % 10 == 0 && ml_started)
+        /* logged when something changes, not every second (Canon's menu left open filled the log, 2026-11-12) */
+        int state = (CURRENT_GUI_MODE & 0xff) | lv << 8 | !!display_idle() << 9 | !!is_movie_mode() << 10
+                  | !!DISPLAY_IS_ON << 11 | (shooting_mode & 0xff) << 16;
+        if (ml_started && (state != last_state || auto_power_off_time != last_apo))
+        {
             DBG_STATE("startup waiting");
+            last_state = state;
+            last_apo = auto_power_off_time;
+        }
         msleep(100);
     }
     msleep(300);
