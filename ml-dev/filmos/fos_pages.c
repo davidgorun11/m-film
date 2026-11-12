@@ -574,8 +574,8 @@ static void change(const struct item *it, int dir)
         case IT_TOGGLE:
             pg_set(it->setting, !v);
             break;
-        case IT_CHOICE:
-            pg_set(it->setting, fos_clamp(v + dir, 0, it->n - 1));
+        case IT_CHOICE:             /* a carousel: past the last choice comes the first again (6D2 fork) */
+            pg_set(it->setting, (fos_clamp(v, 0, it->n - 1) + dir + it->n) % it->n);
             break;
         case IT_LEVEL:
             pg_set(it->setting, fos_clamp(v + dir, -FOS_SCR_STEPS, FOS_SCR_STEPS));
@@ -625,9 +625,7 @@ void page_key(int k)
             break;
         case FK_SET:
             if (it->kind == IT_TOGGLE) change(it, 0);
-            else if (it->kind == IT_CHOICE)
-                pg_set(it->setting, (pg_get(it->setting) + 1) % it->n);
-            else if (it->kind == IT_FSTOP) change(it, 1);
+            /* choices and f-stops change with ◀ ▶ only: SET there would just be a third way (6D2 fork) */
             else if (it->kind == IT_PAGE) ui_go(SCR_PAGE, it->setting, GO_PUSH);
             else if (it->kind == IT_ACTION && it->setting == ACT_SCR_RESET)
             {
