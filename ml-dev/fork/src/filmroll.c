@@ -77,7 +77,7 @@ static CONFIG_INT("filmroll.hud",       hud_enabled,      1);
 static CONFIG_INT("filmroll.focus",     focus_screen,     1);
 static CONFIG_INT("filmroll.leds",      leds_on_half,     1);
 static CONFIG_INT("filmroll.wind",      wind_mode,        1);   /* 0 off, 1 reminder, 2 block shutter */
-static CONFIG_INT("filmroll.playlock",  play_lock,        1);
+static CONFIG_INT("filmroll.playlock",  play_lock,        0);   /* off: PLAY on the shooting screen is Canon's playback */
 static CONFIG_INT("filmroll.startup",   startup_picker,   2);   /* 0 off, 1 when no film, 2 always */
 static CONFIG_INT("filmroll.bootanim",  boot_anim,        1);
 static CONFIG_INT("filmroll.debug",     debug_log,        1);
