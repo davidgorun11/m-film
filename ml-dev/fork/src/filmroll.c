@@ -524,6 +524,7 @@ static volatile int ui_abort = 0;
 static int ui_after = 0;                /* what to do once it has let go */
 static int ui_last_mode_poke = 0;
 static void lv_resume_after_darkroom();     /* below, with the abort test */
+static void lv_off_for_film_os();           /* below, with the darkroom's pause */
 extern int ui_clobbered;                    /* fos_ui.c: the screen was drawn over, paint it all again */
 static int ui_last_palette = 0;
 
@@ -718,6 +719,7 @@ static void ui_task(int open)
     keyq_in = keyq_out = 0;
     ui_abort = 0;
     ui_after = 0;
+    lv_off_for_film_os();                   /* the film OS never runs over LiveView (6D2 fork, 2026-11-12) */
     film_ui_open();
     DBG_STATE("film os: open");
 #ifdef FEATURE_VRAM_RGBA
@@ -860,6 +862,19 @@ static void lv_pause_for_darkroom()
     if (lv) { dbg("darkroom: LiveView didn't stop for the LV button, developing with it"); return; }
     lv_held = 1;
     lv_settle_ui("paused");
+}
+
+/* Into the film OS, LiveView goes off, always, and stays off when it closes: the LV button turns it back on
+ * (the user, 2026-11-12, as for the darkroom). The film OS then opens as it does with the viewfinder. */
+static void lv_off_for_film_os()
+{
+    if (!lv || is_movie_mode()) return;
+    int t0 = get_ms_clock();
+    lv_fake_until = t0 + 1000;
+    fake_simple_button(BGMT_LV);
+    for (int i = 0; i < 300 && lv; i++) msleep(10);
+    lv_switch_t = ui_last_mode_poke = get_ms_clock();       /* Canon settles its screen: only the shutter leaves for 3 s */
+    dbg("film os: LiveView %s for it after %d ms", lv ? "didn't stop" : "turned off", get_ms_clock() - t0);
 }
 
 /* The darkroom done: LiveView stays off (the user turns it on with the LV button when they want it, 2026-11-10);
