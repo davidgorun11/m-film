@@ -1573,6 +1573,27 @@ const char *fos_port_lens_name()
     return lens_info.name[0] ? lens_info.name : "Lens";
 }
 
+/* an electronic lens, as Canon reports it: for the Lens page (6D2 fork) */
+int fos_port_lens_f10()
+{
+    return lens_info.aperture;          /* f x10 */
+}
+
+static void f10_text(char *buf, int size, int f10)
+{
+    if (f10 % 10 && f10 < 100) snprintf(buf, size, "%d.%d", f10 / 10, f10 % 10);
+    else snprintf(buf, size, "%d", f10 / 10);
+}
+
+void fos_port_lens_detail(char *buf, int size)
+{
+    char w[8] = "", n[8] = "";
+    if (lens_info.raw_aperture_min) f10_text(w, sizeof(w), RAW2VALUE(aperture, lens_info.raw_aperture_min));
+    if (lens_info.raw_aperture_max) f10_text(n, sizeof(n), RAW2VALUE(aperture, lens_info.raw_aperture_max));
+    if (w[0] && n[0]) snprintf(buf, size, "%d mm  " "f/%s-%s", lens_info.focal_len, w, n);
+    else snprintf(buf, size, "%d mm", lens_info.focal_len);
+}
+
 /* M-Film's version (VERSION at the top of the repository; build_fork.sh writes fos_version.h) */
 #if defined(__has_include)
 #if __has_include("fos_version.h")
