@@ -167,8 +167,9 @@ static int shooting_screen()
     return (lv || !FOS_LV_ONLY) && display_idle() && !is_movie_mode();
 }
 
-#define DBG_STATE(what) dbg("%s: ml=%d lv=%d idle=%d movie=%d mode=%d gui=%d", what, \
-                            ml_started, lv, display_idle(), is_movie_mode(), shooting_mode, CURRENT_GUI_MODE)
+/* apo: Canon's "Auto power off" in seconds, 0 = Disable (then Canon ends LiveView after 30 min and never switches off) */
+#define DBG_STATE(what) dbg("%s: ml=%d lv=%d idle=%d movie=%d mode=%d gui=%d display=%d apo=%d", what, \
+                            ml_started, lv, display_idle(), is_movie_mode(), shooting_mode, CURRENT_GUI_MODE, DISPLAY_IS_ON, auto_power_off_time)
 
 /* ---------------------------------------------------------------- log file */
 
@@ -2001,8 +2002,9 @@ static void filmroll_task()
         int now = get_ms_clock();
         if (now - last_alive > 60000)
         {
-            dbg("main: alive, roll %d loaded %d shot %d/%d file %d",
-                roll_number, roll_loaded, frames_shot, roll_exposures, last_file_number);
+            dbg("main: alive, roll %d loaded %d shot %d/%d file %d, display %d lv %d ui %d dev %d apo %d",
+                roll_number, roll_loaded, frames_shot, roll_exposures, last_file_number,
+                DISPLAY_IS_ON, lv, ui_running, dev_busy, auto_power_off_time);
             last_alive = now;
         }
         msleep(50);
