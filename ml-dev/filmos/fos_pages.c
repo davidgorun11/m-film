@@ -819,6 +819,15 @@ static void page_row(const struct item *it, int i, int y, int selected)
                 fos_format_fstop(ap, sizeof(ap), v);
                 snprintf(b, sizeof(b), "f/%s", ap);
             }
+            /* an electronic lens: the grey rows show that lens, not the settings kept for a manual one */
+            if (off)
+            {
+                int f10 = it->setting == FS_FSTOP ? fos_port_lens_f10() : it->setting == FS_LENS_WIDE ? fos_port_lens_wide_f10() : -1;
+                if (f10 < 0) snprintf(b, sizeof(b), T_MDASH);
+                else if (f10 % 10 && f10 < 100) snprintf(b, sizeof(b), "f/%d.%d", f10 / 10, f10 % 10);
+                else if (f10) snprintf(b, sizeof(b), "f/%d", f10 / 10);
+                else snprintf(b, sizeof(b), "f/--");
+            }
             /* the value stands still whether or not the row is selected; the arrows sit the same
              * VAL_GAP from it on both sides, the right one as far in from the edge as the label */
             int w = fos_text_w(&fos_font_mdb, b, 0);

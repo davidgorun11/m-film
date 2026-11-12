@@ -177,6 +177,7 @@ void fos_port_clock(char *buf, int size);   /* "14:32" */
 int  fos_port_lens_manual();
 const char *fos_port_lens_name();
 int  fos_port_lens_f10();                                 /* an electronic lens: its aperture now, f x10 (0: not known) */
+int  fos_port_lens_wide_f10();                            /* ... the widest it opens, f x10 (0: not known) */
 void fos_port_lens_detail(char *buf, int size);           /* ... its focal length and f-stops, "50 mm  f/1.8-22" */
 const char *fos_port_version();
 const char *fos_port_model();               /* "Canon EOS M": the camera it runs on */
