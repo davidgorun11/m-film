@@ -622,6 +622,11 @@ void page_key(int k)
                 change(it, k == FK_RIGHT ? 1 : -1);
             else if (it->kind == IT_PAGE && k == FK_RIGHT)
                 ui_go(SCR_PAGE, it->setting, GO_PUSH);
+            else if (it->kind == IT_ACTION && k == FK_RIGHT)
+            {
+                page_key(FK_SET);   /* its arrow does what it shows: ▶ runs it, as SET does (6D2 fork) */
+                return;
+            }
             break;
         case FK_SET:
             /* toggles, choices and f-stops change with ◀ ▶ only: SET there would just be a third way (6D2 fork) */
