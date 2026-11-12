@@ -500,9 +500,8 @@ void page_key(int k)
                 ui_go(SCR_PAGE, it->setting, GO_PUSH);
             break;
         case FK_SET:
-            if (it->kind == IT_TOGGLE) change(it, 0);
-            /* choices and f-stops change with ◀ ▶ only: SET there would just be a third way (6D2 fork) */
-            else if (it->kind == IT_PAGE) ui_go(SCR_PAGE, it->setting, GO_PUSH);
+            /* toggles, choices and f-stops change with ◀ ▶ only: SET there would just be a third way (6D2 fork) */
+            if (it->kind == IT_PAGE) ui_go(SCR_PAGE, it->setting, GO_PUSH);
             else if (it->kind == IT_ACTION && it->setting == ACT_SCR_RESET)
             {
                 fos_port_set(FS_SCR_STD, 0);
@@ -737,15 +736,6 @@ static void preview_about()
 }
 
 /* an on / off switch; k = 0..1 where the knob is */
-static void toggle_switch(int rx, int cy, float k)
-{
-    int w = 44, h = 24;
-    int x = rx - w, y = cy - h / 2;
-    int on_lv = (int) (k * 186);
-    fos_rrect(cv, x, y, w, h, h / 2, k > 0.5f ? FC(RAMP_AMBER, 40 + on_lv * 146 / 186) : FC(RAMP_GRAY, 40 + (int) ((1 - k) * 12)), OPAQUE);
-    int kx = x + 12 + (int) (k * (w - 24));
-    fos_disc(cv, kx * 256, cy * 256, 9 * 256, FC(RAMP_GRAY, 244), OPAQUE);
-}
 
 /* a -6..6 slider ending at rx: notches, a knob at k, the value beside it */
 static void level_slider(int rx, int cy, float k, int value, int selected)
@@ -771,6 +761,9 @@ static void level_slider(int rx, int cy, float k, int value, int selected)
     fos_text_r(cv, &fos_font_mdb, x0 - 16, cy + 7, b, selected ? C_TEXT : C_TEXT2, OPAQUE, 0);
 }
 
+#define VAL_ARROW 7     /* the value's arrow heads, px */
+#define VAL_GAP   10    /* between them and the value */
+
 static void page_row(const struct item *it, int i, int y, int selected)
 {
     int base = y + 30;
@@ -779,14 +772,14 @@ static void page_row(const struct item *it, int i, int y, int selected)
     char b[48];
     switch (it->kind)
     {
-        case IT_TOGGLE:
-            toggle_switch(rx, y + P_ROW_H / 2, knob[i].x);
-            break;
+        case IT_TOGGLE:             /* On / Off, shown and turned like a choice (6D2 fork) */
         case IT_CHOICE:
         case IT_FSTOP:
         {
             int v = fos_port_get(it->setting);
-            if (it->kind == IT_CHOICE)
+            if (it->kind == IT_TOGGLE)
+                snprintf(b, sizeof(b), "%s", v ? "On" : "Off");
+            else if (it->kind == IT_CHOICE)
                 snprintf(b, sizeof(b), "%s", it->choices[fos_clamp(v, 0, it->n - 1)]);
             else
             {
@@ -794,15 +787,18 @@ static void page_row(const struct item *it, int i, int y, int selected)
                 fos_format_fstop(ap, sizeof(ap), v);
                 snprintf(b, sizeof(b), "f/%s", ap);
             }
+            /* the value stands still whether or not the row is selected; the arrows sit the same
+             * VAL_GAP from it on both sides, the right one as far in from the edge as the label */
             int w = fos_text_w(&fos_font_mdb, b, 0);
-            fcol vc = selected ? C_ACCENT : C_TEXT2;
+            int cy = y + P_ROW_H / 2 - 1;
+            int ar = P_X + P_W - 22 - VAL_ARROW / 2;            /* the right arrow's middle */
+            int tr = ar - VAL_ARROW / 2 - VAL_GAP;              /* the value's right edge */
             if (selected)
             {
-                fos_tri(cv, rx - w - 18, y + P_ROW_H / 2 - 1, 7, 2, C_TEXT3, OPAQUE);
-                fos_tri(cv, rx - 4, y + P_ROW_H / 2 - 1, 7, 0, C_TEXT3, OPAQUE);
-                rx -= 14;
+                fos_tri(cv, tr - w - VAL_GAP - VAL_ARROW / 2, cy, VAL_ARROW, 2, C_TEXT3, OPAQUE);
+                fos_tri(cv, ar, cy, VAL_ARROW, 0, C_TEXT3, OPAQUE);
             }
-            fos_text_r(cv, &fos_font_mdb, rx, base, b, vc, OPAQUE, 0);
+            fos_text_r(cv, &fos_font_mdb, tr, base, b, selected ? C_ACCENT : C_TEXT2, OPAQUE, 0);
             break;
         }
         case IT_ACTION:
