@@ -1590,8 +1590,25 @@ void fos_port_lens_detail(char *buf, int size)
     char w[8] = "", n[8] = "";
     if (lens_info.raw_aperture_min) f10_text(w, sizeof(w), RAW2VALUE(aperture, lens_info.raw_aperture_min));
     if (lens_info.raw_aperture_max) f10_text(n, sizeof(n), RAW2VALUE(aperture, lens_info.raw_aperture_max));
-    if (w[0] && n[0]) snprintf(buf, size, "%d mm  " "f/%s-%s", lens_info.focal_len, w, n);
-    else snprintf(buf, size, "%d mm", lens_info.focal_len);
+    /* the lens' focal range (PROP_LENS, as its name) is reliable; the focal length it is at comes from
+     * PROP_LV_LENS, whose layout on the 6D2 is ML's guess: an EF 24-70 read 2 mm (2026-11-12). It is shown
+     * only when it falls in the range, and every change is logged to find where it is right. */
+    int lo = lens_info.lens_focal_min, hi = lens_info.lens_focal_max, at = lens_info.focal_len;
+    static int logged = -1;
+    int sig = lo << 20 ^ hi << 10 ^ at;
+    if (sig != logged)
+    {
+        dbg("lens: %s, focal range %d-%d, focal length read %d (lv %d), f/%d.%d", lens_info.name, lo, hi, at, lv,
+            lens_info.aperture / 10, lens_info.aperture % 10);
+        logged = sig;
+    }
+    char fl[24];
+    if (lo && hi && lo != hi && at >= lo && at <= hi) snprintf(fl, sizeof(fl), "%d mm (%d-%d)", at, lo, hi);
+    else if (lo && hi && lo != hi) snprintf(fl, sizeof(fl), "%d-%d mm", lo, hi);
+    else if (lo) snprintf(fl, sizeof(fl), "%d mm", lo);
+    else fl[0] = 0;
+    if (w[0] && n[0]) snprintf(buf, size, "%s%s" "f/%s-%s", fl, fl[0] ? "  " : "", w, n);
+    else snprintf(buf, size, "%s", fl);
 }
 
 /* M-Film's version (VERSION at the top of the repository; build_fork.sh writes fos_version.h) */
