@@ -1490,6 +1490,18 @@ static void hud_step()
     int sig = lit | blink << 1 | need_wind << 2 | (frames_shot & 0xFF) << 3
             | lens_info.raw_shutter << 11 | (ev8 & 0xFF) << 19 | (current_fstop() & 0x1F) << 27;
 
+#ifdef CONFIG_6D2
+    /* Canon drew over the HUD or the plate (its settings on a half-press, a dial turned): push ours back
+     * now, the whole frame, not at the next full refresh a second later (2026-11-12) */
+    if (ml_osd_overdrawn())
+    {
+        static int overdraws = 0;
+        ml_refresh_full = 1;
+        ml_refresh_display_needed = 1;
+        if (overdraws++ % 50 == 0) dbg("hud: Canon drew over ours, put back (%d times so far)", overdraws);
+    }
+#endif
+
     /* redraw on change, and every second to win over Canon's overlays */
     if (sig != last_sig || hud_dirty || now - last_draw > 1000)
     {

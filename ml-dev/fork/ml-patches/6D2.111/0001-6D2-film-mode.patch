@@ -19,7 +19,7 @@ index ed474645d..eba21df46 100644
      selftest \
      adv_int \
 diff --git a/platform/6D2.111/Makefile b/platform/6D2.111/Makefile
-index dc7361d39..64e59ab3b 100644
+index dc7361d39..ed6506ffc 100644
 --- a/platform/6D2.111/Makefile
 +++ b/platform/6D2.111/Makefile
 @@ -21,6 +21,13 @@ CFLAGS_PLATFORM += -mthumb -mlong-calls
@@ -35,7 +35,7 @@ index dc7361d39..64e59ab3b 100644
 +# kept in autoexec.bin for the film OS module (only it calls these; --gc-sections would drop them)
 +LFLAGS += -u get_us_clock -u display_on -u FIO_GetFileSize_direct -u __powisf2 -u beep_times -u bmp_rgb_lut -u cosf -u display_is_on -u exp2f \
 +          -u get_dcim_dir_suffix -u lens_set_kelvin -u lens_set_rawiso -u lens_set_wbs_ba -u lens_set_wbs_gm \
-+          -u ml_blank_osd -u picstyle_slot -u sinf -u strcat
++          -u ml_blank_osd -u ml_osd_overdrawn -u picstyle_slot -u sinf -u strcat
 diff --git a/platform/6D2.111/features.h b/platform/6D2.111/features.h
 index 8ea498ec5..9e9f10ee8 100644
 --- a/platform/6D2.111/features.h
@@ -111,7 +111,7 @@ index b1f3d9ff1..3000afd5f 100644
  $(BUILD_DIR)/magiclantern.bin: $(BUILD_DIR)/magiclantern | $(BUILD_DIR)
  	$(OBJCOPY) -O binary $< $@
 diff --git a/src/bmp.c b/src/bmp.c
-index de9222e70..b4fcd9c7c 100755
+index de9222e70..03596efb4 100755
 --- a/src/bmp.c
 +++ b/src/bmp.c
 @@ -110,10 +110,21 @@ void bmp_draw_to_idle(int value) { bmp_idle_flag = value; }
@@ -211,7 +211,7 @@ index de9222e70..b4fcd9c7c 100755
  }
  
  #if defined(CONFIG_INSTALLER)
-@@ -275,6 +330,26 @@ void refresh_yuv_from_rgb(void)
+@@ -275,6 +330,44 @@ void refresh_yuv_from_rgb(void)
  int ml_shutdown_requested = 0;
  #endif
  
@@ -235,10 +235,28 @@ index de9222e70..b4fcd9c7c 100755
 +}
 +#endif
 +
++/* M-Film: has Canon drawn over the ML picture in its layer? A grid of points where ours is opaque,
++ * compared with the layer. The refresh above rewrites only the rows of ours that changed, so what
++ * Canon draws over an unchanged HUD (its settings on a half-press) stayed up to the next full refresh,
++ * a second later: the film OS checks this every 100 ms and asks for a full refresh when it is so. */
++int ml_osd_overdrawn(void)
++{
++    if (rgb_vram_info == NULL || bmp_vram_indexed == NULL) return 0;
++    const uint32_t *rgb = (const uint32_t *) rgb_vram_info->bitmap_data;
++    for (int y = 6; y < 480; y += 18)
++        for (int x = 6; x < 720; x += 18)
++        {
++            int i = BMP_HDMI_OFFSET + y * BMPPITCH + x;
++            uint32_t want = indexed2rgbLUT[bmp_vram_indexed[i]];
++            if (want && rgb[i] != want) return 1;
++        }
++    return 0;
++}
++
  void refresh_yuv_from_rgb_task(void *unused)
  {
      #ifdef CONFIG_COMPOSITOR_DEDICATED_LAYER
-@@ -287,9 +362,21 @@ void refresh_yuv_from_rgb_task(void *unused)
+@@ -287,9 +380,21 @@ void refresh_yuv_from_rgb_task(void *unused)
      {
          if (ml_refresh_display_needed && !ml_shutdown_requested && DISPLAY_IS_ON)
          {
@@ -246,10 +264,10 @@ index de9222e70..b4fcd9c7c 100755
 +            /* cleared before, not after: a frame drawn during the refresh asks for the next one */
 +            ml_refresh_display_needed = 0;
 +            ml_refresh_busy = 1;
-             refresh_yuv_from_rgb();
++            refresh_yuv_from_rgb();
 +            ml_refresh_busy = 0;
 +#else
-+            refresh_yuv_from_rgb();
+             refresh_yuv_from_rgb();
 +#endif
          }
 +#ifdef CONFIG_6D2
@@ -260,7 +278,7 @@ index de9222e70..b4fcd9c7c 100755
      }
  }
  
-@@ -340,8 +427,16 @@ static uint32_t indexed2uyvyLUT[COLOR_ORANGE + 1] = {
+@@ -340,8 +445,16 @@ static uint32_t indexed2uyvyLUT[COLOR_ORANGE + 1] = {
  #endif
  
  
@@ -277,7 +295,7 @@ index de9222e70..b4fcd9c7c 100755
      if (color < RGB_LUT_SIZE)
      {
          return indexed2rgbLUT[color];
-@@ -351,6 +446,7 @@ uint32_t indexed2rgb(uint8_t color)
+@@ -351,6 +464,7 @@ uint32_t indexed2rgb(uint8_t color)
          // return gray so it's probably visible
          return indexed2rgbLUT[4];
      }
@@ -286,23 +304,24 @@ index de9222e70..b4fcd9c7c 100755
  
  #endif
 diff --git a/src/bmp.h b/src/bmp.h
-index 0a79cda28..09fd49e2b 100755
+index 0a79cda28..389bb8928 100755
 --- a/src/bmp.h
 +++ b/src/bmp.h
-@@ -36,6 +36,12 @@
+@@ -36,6 +36,13 @@
  extern int bmp_enabled;
  
  extern uint32_t ml_refresh_display_needed;
 +#ifdef FEATURE_VRAM_RGBA
 +uint32_t *bmp_rgb_lut(void);
 +extern volatile uint32_t ml_refresh_busy;
++int ml_osd_overdrawn(void);                 /* M-Film: Canon drew over the ML picture in its layer */
 +void ml_blank_osd(void);                    /* M-Film: write transparent pixels over the 720x480 the film OS drew in */
 +extern uint32_t ml_refresh_count, ml_refresh_ms, ml_refresh_full, ml_ximr_ms;   /* M-Film: the index -> ARGB table, to load its own colours */
 +#endif
  
  /** Returns a pointer to the real BMP vram (or to idle BMP vram) */
  uint8_t * bmp_vram(void);
-@@ -78,7 +84,7 @@ void refresh_yuv_from_rgb(void);
+@@ -78,7 +85,7 @@ void refresh_yuv_from_rgb(void);
  void refresh_yuv_from_rgb_task(void *);
  uint32_t indexed2rgb(uint8_t color);
  
