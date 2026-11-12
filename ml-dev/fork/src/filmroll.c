@@ -1493,12 +1493,16 @@ static void hud_step()
 #ifdef CONFIG_6D2
     /* Canon drew over the HUD or the plate (its settings on a half-press, a dial turned): push ours back
      * now, the whole frame, not at the next full refresh a second later (2026-11-12) */
-    if (ml_osd_overdrawn())
+    /* and where ours is clear (its LiveView info around the HUD on a half-press: top left, above the
+     * bar): wiped, the whole 720x480 written with ours and clear pixels, LiveView shows through */
+    int over = ml_osd_overdrawn();
+    if (over)
     {
         static int overdraws = 0;
         ml_refresh_full = 1;
+        ml_refresh_wipe = 1;
         ml_refresh_display_needed = 1;
-        if (overdraws++ % 50 == 0) dbg("hud: Canon drew over ours, put back (%d times so far)", overdraws);
+        if (overdraws++ % 50 == 0) dbg("hud: Canon drew %s, wiped (%d times so far)", over == 1 ? "over ours" : "around ours", overdraws);
     }
 #endif
 

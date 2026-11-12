@@ -111,10 +111,10 @@ index b1f3d9ff1..3000afd5f 100644
  $(BUILD_DIR)/magiclantern.bin: $(BUILD_DIR)/magiclantern | $(BUILD_DIR)
  	$(OBJCOPY) -O binary $< $@
 diff --git a/src/bmp.c b/src/bmp.c
-index de9222e70..03596efb4 100755
+index de9222e70..292fad8ac 100755
 --- a/src/bmp.c
 +++ b/src/bmp.c
-@@ -110,10 +110,21 @@ void bmp_draw_to_idle(int value) { bmp_idle_flag = value; }
+@@ -110,10 +110,22 @@ void bmp_draw_to_idle(int value) { bmp_idle_flag = value; }
  struct MARV *rgb_vram_info = NULL;
  static uint8_t *bmp_vram_indexed = NULL;
  // SJE what is an appropriate priority for this task?
@@ -131,12 +131,13 @@ index de9222e70..03596efb4 100755
 +uint32_t ml_refresh_count = 0, ml_refresh_ms = 0;
 +static uint32_t *ml_rgb_other = NULL;   /* M-Film: the OSD layer buffer Canon showed before the current one */
 +volatile uint32_t ml_refresh_busy = 0;   /* M-Film: the OSD refresh is reading the indexed buffer */
-+uint32_t ml_refresh_full = 0, ml_ximr_ms = 0;   /* M-Film: force a whole-frame refresh; time spent in XimrExe */   /* M-Film: how often and how long the OSD refresh runs */
++uint32_t ml_refresh_full = 0, ml_ximr_ms = 0;   /* M-Film: force a whole-frame refresh; time spent in XimrExe */
++uint32_t ml_refresh_wipe = 0;   /* M-Film (6D2): the next full refresh writes transparent pixels too, wiping what Canon drew */
 +#endif
  
  /** Returns a pointer to currently selected BMP vram (real or mirror) */
  uint8_t * bmp_vram(void)
-@@ -191,8 +202,11 @@ void bmp_idle_copy(int direction, int fullsize)
+@@ -191,8 +203,11 @@ void bmp_idle_copy(int direction, int fullsize)
  // but this struct is not yet determined for 200D
  extern int XimrExe(void *);
  extern struct semaphore *winsys_sem;
@@ -148,7 +149,7 @@ index de9222e70..03596efb4 100755
      // get our indexed buffer, convert into our real rgb buffer
      uint8_t *b = bmp_vram_indexed;
      uint32_t *rgb_data = NULL;
-@@ -239,6 +253,41 @@ void refresh_yuv_from_rgb(void)
+@@ -239,6 +254,43 @@ void refresh_yuv_from_rgb(void)
              }
              rgb_row = rgb_row + BMP_LAYER_WIDTH;
          }
@@ -163,9 +164,11 @@ index de9222e70..03596efb4 100755
 +            static uint32_t *last_rgb = NULL;
 +            static uint32_t last_full_ms = 0;
 +            uint32_t now = get_ms_clock();
-+            int full = ml_refresh_full || rgb_data != last_rgb || now - last_full_ms > 1000;
++            int wipe = ml_refresh_wipe;
++            int full = ml_refresh_full || wipe || rgb_data != last_rgb || now - last_full_ms > 1000;
 +            if (full) last_full_ms = now;
 +            ml_refresh_full = 0;
++            ml_refresh_wipe = 0;
 +            if (rgb_data != last_rgb && last_rgb) ml_rgb_other = last_rgb;      /* Canon swapped its layer: remember the one it left */
 +            last_rgb = rgb_data;
 +            const uint32_t *lut = indexed2rgbLUT;
@@ -183,14 +186,14 @@ index de9222e70..03596efb4 100755
 +                for (int x = 0; x < 720; x++)
 +                {
 +                    uint32_t rgb = lut[src[x]];
-+                    if (rgb) dst[x] = rgb;
++                    if (rgb || wipe) dst[x] = rgb;
 +                }
 +            }
 +        }
  #else
          //SJE FIXME benchmark this loop, it probably wants optimising
          for (size_t n = 0; n < BMP_VRAM_SIZE; n++)
-@@ -259,6 +308,7 @@ void refresh_yuv_from_rgb(void)
+@@ -259,6 +311,7 @@ void refresh_yuv_from_rgb(void)
  #endif
  
      // trigger Ximr to render to OSD from RGB buffer
@@ -198,7 +201,7 @@ index de9222e70..03596efb4 100755
  #ifdef CONFIG_DIGIC_VI
      XimrExe((void *)XIMR_CONTEXT);
  #else
-@@ -266,7 +316,12 @@ void refresh_yuv_from_rgb(void)
+@@ -266,7 +319,12 @@ void refresh_yuv_from_rgb(void)
      XimrExe((void *)XIMR_CONTEXT);
      give_semaphore(winsys_sem);
  #endif
@@ -211,7 +214,7 @@ index de9222e70..03596efb4 100755
  }
  
  #if defined(CONFIG_INSTALLER)
-@@ -275,6 +330,44 @@ void refresh_yuv_from_rgb(void)
+@@ -275,6 +333,50 @@ void refresh_yuv_from_rgb(void)
  int ml_shutdown_requested = 0;
  #endif
  
@@ -243,20 +246,26 @@ index de9222e70..03596efb4 100755
 +{
 +    if (rgb_vram_info == NULL || bmp_vram_indexed == NULL) return 0;
 +    const uint32_t *rgb = (const uint32_t *) rgb_vram_info->bitmap_data;
-+    for (int y = 6; y < 480; y += 18)
-+        for (int x = 6; x < 720; x += 18)
++    for (int y = 2; y < 480; )
++    {
++        /* Canon's LiveView info: a band along the top and one above the bottom bar, its text a few px
++         * thick: looked at closely there, every 18 px elsewhere */
++        int dense = y < 70 || (y > 370 && y < 450);
++        for (int x = 2; x < 720; x += dense ? 3 : 18)
 +        {
 +            int i = BMP_HDMI_OFFSET + y * BMPPITCH + x;
 +            uint32_t want = indexed2rgbLUT[bmp_vram_indexed[i]];
-+            if (want && rgb[i] != want) return 1;
++            if (want ? rgb[i] != want : (rgb[i] >> 24) != 0) return want ? 1 : 2;
 +        }
++        y += dense ? 5 : 18;
++    }
 +    return 0;
 +}
 +
  void refresh_yuv_from_rgb_task(void *unused)
  {
      #ifdef CONFIG_COMPOSITOR_DEDICATED_LAYER
-@@ -287,9 +380,21 @@ void refresh_yuv_from_rgb_task(void *unused)
+@@ -287,9 +389,21 @@ void refresh_yuv_from_rgb_task(void *unused)
      {
          if (ml_refresh_display_needed && !ml_shutdown_requested && DISPLAY_IS_ON)
          {
@@ -278,7 +287,7 @@ index de9222e70..03596efb4 100755
      }
  }
  
-@@ -340,8 +445,16 @@ static uint32_t indexed2uyvyLUT[COLOR_ORANGE + 1] = {
+@@ -340,8 +454,16 @@ static uint32_t indexed2uyvyLUT[COLOR_ORANGE + 1] = {
  #endif
  
  
@@ -295,7 +304,7 @@ index de9222e70..03596efb4 100755
      if (color < RGB_LUT_SIZE)
      {
          return indexed2rgbLUT[color];
-@@ -351,6 +464,7 @@ uint32_t indexed2rgb(uint8_t color)
+@@ -351,6 +473,7 @@ uint32_t indexed2rgb(uint8_t color)
          // return gray so it's probably visible
          return indexed2rgbLUT[4];
      }
@@ -304,7 +313,7 @@ index de9222e70..03596efb4 100755
  
  #endif
 diff --git a/src/bmp.h b/src/bmp.h
-index 0a79cda28..389bb8928 100755
+index 0a79cda28..f051af3b2 100755
 --- a/src/bmp.h
 +++ b/src/bmp.h
 @@ -36,6 +36,13 @@
@@ -314,9 +323,9 @@ index 0a79cda28..389bb8928 100755
 +#ifdef FEATURE_VRAM_RGBA
 +uint32_t *bmp_rgb_lut(void);
 +extern volatile uint32_t ml_refresh_busy;
-+int ml_osd_overdrawn(void);                 /* M-Film: Canon drew over the ML picture in its layer */
++int ml_osd_overdrawn(void);                 /* M-Film: Canon drew in its layer: 1 over ours, 2 where ours is clear */
 +void ml_blank_osd(void);                    /* M-Film: write transparent pixels over the 720x480 the film OS drew in */
-+extern uint32_t ml_refresh_count, ml_refresh_ms, ml_refresh_full, ml_ximr_ms;   /* M-Film: the index -> ARGB table, to load its own colours */
++extern uint32_t ml_refresh_count, ml_refresh_ms, ml_refresh_full, ml_ximr_ms, ml_refresh_wipe;   /* M-Film: the index -> ARGB table, to load its own colours */
 +#endif
  
  /** Returns a pointer to the real BMP vram (or to idle BMP vram) */
