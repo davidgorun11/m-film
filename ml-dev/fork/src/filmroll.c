@@ -1579,6 +1579,11 @@ int fos_port_lens_f10()
     return lens_info.aperture;          /* f x10 */
 }
 
+int fos_port_lens_wide_f10()
+{
+    return lens_info.raw_aperture_min ? RAW2VALUE(aperture, lens_info.raw_aperture_min) : 0;
+}
+
 static void f10_text(char *buf, int size, int f10)
 {
     if (f10 % 10 && f10 < 100) snprintf(buf, size, "%d.%d", f10 / 10, f10 % 10);
