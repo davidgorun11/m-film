@@ -369,6 +369,8 @@ static int help_fade;           /* ms since the selection changed */
 #define PV_H      (P_ROWS * P_ROW_H)
 
 static struct spring lens_open;     /* the aperture in the lens preview, 0..1 */
+/* the Lens page with an electronic lens: the camera knows the aperture, nothing to set (6D2 fork) */
+static int lens_auto() { return page == 1 && !fos_port_lens_manual(); }
 
 /* what the next frame redraws */
 enum { D_LIST = 1, D_PREV = 2, D_HELP = 4, D_ALL = 8 };
@@ -431,6 +433,7 @@ void page_enter(int arg)
         knob[i].x = knob_target(&pages[page].items[i]);
         knob[i].v = 0;
     }
+    if (lens_auto()) { page_sel = 0; page_top = 0; page_hl.x = 0; }
     help_fade = 1000;
     lens_open.x = fstop_open(fos_port_get(FS_FSTOP)); lens_open.v = 0;
     pg_dirty = D_ALL;
@@ -483,9 +486,11 @@ void page_key(int k)
     switch (k)
     {
         case FK_UP: case FK_WHEEL_L:
+            if (lens_auto()) break;     /* the other rows are the camera's: nothing to move to */
             if (page_sel > 0) { page_sel--; help_fade = 0; }
             break;
         case FK_DOWN: case FK_WHEEL_R:
+            if (lens_auto()) break;
             if (page_sel < n - 1) { page_sel++; help_fade = 0; }
             break;
         case FK_LEFT: case FK_RIGHT:
@@ -548,6 +553,15 @@ int page_update(int dt)
     if (help_fade < 400) { help_fade += dt; dirty |= D_HELP; }
     if (page == 1)
     {
+        /* the lens changed: turned, zoomed, put on or taken off */
+        static int lens_sig = -1;
+        int sig = fos_port_lens_manual() ? -2 : fos_port_lens_f10() * 4096 + fos_port_get(FS_FSTOP);
+        if (sig != lens_sig)
+        {
+            if (lens_sig != -1 && lens_auto()) page_sel = 0;
+            lens_sig = sig;
+            dirty |= D_ALL;
+        }
         const struct item *it = &pages[page].items[page_sel];
         int idx = it->setting == FS_LENS_WIDE ? fos_port_get(FS_LENS_WIDE) : fos_port_get(FS_FSTOP);
         if (spring_step(&lens_open, fstop_open(idx), dt, 2.6f, 0.72f)) dirty |= D_PREV;
@@ -616,9 +630,22 @@ static void preview_lens()
     int cx = PV_X + PV_W / 2, cy = PV_Y + 90;
     int open = (int) (clampf(lens_open.x, 0.02f, 1) * 4096);
     ui_aperture(cx, cy, 68, open, 3000 + (4096 - open) * 3);
+    char ap[8], b[48];
+    if (lens_auto())
+    {
+        /* an electronic lens: what the camera reads from it, as it is now */
+        int f10 = fos_port_lens_f10();
+        if (f10 % 10 && f10 < 100) snprintf(b, sizeof(b), "f/%d.%d", f10 / 10, f10 % 10);
+        else if (f10) snprintf(b, sizeof(b), "f/%d", f10 / 10);
+        else snprintf(b, sizeof(b), "f/--");
+        fos_text_c(cv, &fos_font_xl, cx, cy + 110, b, C_TEXT, OPAQUE, 0);
+        fos_text_c(cv, &fos_font_sm, cx, cy + 131, fos_port_lens_name(), C_TEXT2, OPAQUE, 0);
+        fos_port_lens_detail(b, sizeof(b));
+        fos_text_c(cv, &fos_font_xs, cx, cy + 148, b, C_ACCENT2, OPAQUE, 16);
+        return;
+    }
     const struct item *it = &pages[page].items[page_sel];
     int idx = it->setting == FS_LENS_WIDE ? fos_port_get(FS_LENS_WIDE) : fos_port_get(FS_FSTOP);
-    char ap[8], b[24];
     fos_format_fstop(ap, sizeof(ap), idx);
     snprintf(b, sizeof(b), "f/%s", ap);
     fos_text_c(cv, &fos_font_xl, cx, cy + 126, b, C_TEXT, OPAQUE, 0);
@@ -770,7 +797,9 @@ static void level_slider(int rx, int cy, float k, int value, int selected)
 static void page_row(const struct item *it, int i, int y, int selected)
 {
     int base = y + 30;
-    fos_text(cv, &fos_font_md, P_X + 22, base, it->label, selected ? C_TEXT : C_TEXT2, OPAQUE, 0);
+    int off = lens_auto() && i > 0;     /* the camera sets these with its lens: shown, not changed */
+    if (off) selected = 0;
+    fos_text(cv, &fos_font_md, P_X + 22, base, it->label, off ? C_TEXT3 : selected ? C_TEXT : C_TEXT2, OPAQUE, 0);
     int rx = P_X + P_W - 20;
     char b[48];
     switch (it->kind)
@@ -801,7 +830,7 @@ static void page_row(const struct item *it, int i, int y, int selected)
                 fos_tri(cv, tr - w - VAL_GAP - VAL_ARROW / 2, cy, VAL_ARROW, 2, C_TEXT3, OPAQUE);
                 fos_tri(cv, ar, cy, VAL_ARROW, 0, C_TEXT3, OPAQUE);
             }
-            fos_text_r(cv, &fos_font_mdb, tr, base, b, selected ? C_ACCENT : C_TEXT2, OPAQUE, 0);
+            fos_text_r(cv, &fos_font_mdb, tr, base, b, off ? C_TEXT3 : selected ? C_ACCENT : C_TEXT2, OPAQUE, 0);
             break;
         }
         case IT_ACTION:
@@ -813,7 +842,7 @@ static void page_row(const struct item *it, int i, int y, int selected)
             break;
         case IT_INFO:
             if (it->setting == -1)
-                snprintf(b, sizeof(b), "%s", fos_port_lens_manual() ? "Manual" : fos_port_lens_name());
+                snprintf(b, sizeof(b), "%s", fos_port_lens_manual() ? "Manual" : "Auto");
             else if (it->setting == -3)
             {
                 if (nqr < 0) qr_load();
@@ -862,7 +891,7 @@ void page_draw()
         /* help for the selected row, fading in */
         float a = clampf(help_fade / 260.0f, 0, 1);
         if (!ui_toast_up())
-            fos_text(cv, &fos_font_sm, P_X + 22, HINTS_Y - 14, items[page_sel].help, C_TEXT3, (int) (ease_out(a) * 256), 0);
+            fos_text(cv, &fos_font_sm, P_X + 22, HINTS_Y - 14, lens_auto() ? "The camera reads this lens: its aperture goes on the prints by itself." : items[page_sel].help, C_TEXT3, (int) (ease_out(a) * 256), 0);
     }
     if (!(what & D_LIST)) return;
     fos_clip(cv, 0, P_LIST_Y - 2, PV_X - 4, P_LIST_Y + P_ROWS * P_ROW_H + 2);
