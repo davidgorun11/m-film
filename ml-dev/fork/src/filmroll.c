@@ -78,7 +78,6 @@ static CONFIG_INT("filmroll.focus",     focus_screen,     1);
 static CONFIG_INT("filmroll.leds",      leds_on_half,     1);
 static CONFIG_INT("filmroll.wind",      wind_mode,        1);   /* 0 off, 1 reminder, 2 block shutter */
 static CONFIG_INT("filmroll.playlock",  play_lock,        0);   /* off: PLAY on the shooting screen is Canon's playback */
-static int last_shot_ms = -100000, last_key_ms = -100000;   /* the last frame taken, the last key that wasn't the shutter */
 static CONFIG_INT("filmroll.startup",   startup_picker,   2);   /* 0 off, 1 when no film, 2 always */
 static CONFIG_INT("filmroll.bootanim",  boot_anim,        1);
 static CONFIG_INT("filmroll.debug",     debug_log,        1);
@@ -482,8 +481,7 @@ static void record_frame(int file_number)
         return;
     }
 
-    if (wind_mode)
-        need_wind = 1;
+    /* no wind lever: its reminder was on the HUD (gone on the 6D2 fork) */
 }
 
 /* log every new file number since the last poll */
@@ -515,7 +513,6 @@ static void poll_frames()
     }
 
     dbg("frames: file %d -> %d, logging %d", prev, now, count);
-    last_shot_ms = get_ms_clock();
     for (int i = 1; i <= count; i++)
         record_frame((prev + i - 1) % 9999 + 1);
 }
@@ -1320,29 +1317,12 @@ void fos_port_stat(const struct fos_stat *s)
 
 static volatile int hud_showing = 0;    /* HUD drawn on the LiveView screen */
 
-/* Canon is busy while a frame is taken and saved, and display_idle() says no for a moment: the HUD
- * stayed away, Canon's screen came up in its place (2026-11-12, as #17 on the 6D). Through a shot and
- * 2.5 s after it the HUD stays, unless a button has been pressed since (Q, MENU, INFO: Canon's screen
- * asked for) */
-static int screen_ours()
-{
-    if (display_idle()) return 1;
-    int now = get_ms_clock();
-    return (lens_info.job_state || now - last_shot_ms < 2500) && last_key_ms < last_shot_ms;
-}
-
-static int hud_visible()
-{
-    return hud_enabled && roll_loaded && lv && screen_ours() && !is_movie_mode() && !ui_running;
-}
-
-/* a DSLR shooting through the viewfinder: the back screen shows Canon's
- * settings display, and the top plate (fos_hud_plate) goes over it */
-static int plate_visible()
-{
-    return !FOS_LV_ONLY && hud_enabled && roll_loaded && !lv && display_is_on() && screen_ours()
-        && !is_movie_mode() && !ui_running;
-}
+/* No HUD and no top plate on the 6D2 fork (2026-11-12): Canon's own screen can't be kept from drawing
+ * over and around them on this camera (its hold, WINSYS_BMP_DIRTY_BIT_NEG, is a placeholder address), and
+ * wiping what Canon drew still showed. Canon's screen is all you see while you shoot; the drawing code
+ * stays, never shown. */
+static int hud_visible() { return 0; }
+static int plate_visible() { return 0; }
 
 /* Magic Lantern's own LiveView overlays never draw: the film OS (or
  * Canon's clean screen) is all you see */
@@ -1484,9 +1464,6 @@ static void hud_step()
 
     if (!visible)
     {
-#ifdef CONFIG_6D2
-        ml_osd_guard = 0;               /* Canon's screen is Canon's again */
-#endif
         /* HUD switched off or roll rewound: wipe it once we're back on the LiveView screen */
         if (drawn && (!hud_enabled || !roll_loaded) && lv && display_idle() && !ui_running)
         {
@@ -1505,20 +1482,6 @@ static void hud_step()
 
     int sig = lit | blink << 1 | need_wind << 2 | (frames_shot & 0xFF) << 3
             | lens_info.raw_shutter << 11 | (ev8 & 0xFF) << 19 | (current_fstop() & 0x1F) << 27;
-
-#ifdef CONFIG_6D2
-    /* what Canon draws over or around the HUD (its LiveView info, a half-press, a dial turned) is wiped by
-     * ML's refresh task within 20 ms while this is set (bmp.c, ml_osd_guard); counted for the log */
-    ml_osd_guard = 1;
-    {
-        static uint32_t wipes_logged = 0;
-        if (ml_osd_wipes >= wipes_logged + 200 || (ml_osd_wipes && !wipes_logged))
-        {
-            dbg("hud: Canon drew on the screen, wiped (%d times so far)", ml_osd_wipes);
-            wipes_logged = ml_osd_wipes;
-        }
-    }
-#endif
 
     /* redraw on change, and every second to win over Canon's overlays */
     if (sig != last_sig || hud_dirty || now - last_draw > 1000)
@@ -1634,14 +1597,6 @@ static int canon_play = 0;
 
 static unsigned int lv_key(unsigned int key)
 {
-    if (key && key != MODULE_KEY_PRESS_HALFSHUTTER && key != MODULE_KEY_UNPRESS_HALFSHUTTER &&
-        key != MODULE_KEY_PRESS_FULLSHUTTER && key != MODULE_KEY_UNPRESS_FULLSHUTTER)
-    {
-        last_key_ms = get_ms_clock();
-#ifdef CONFIG_6D2
-        ml_osd_guard = 0;               /* Canon's screen may be on its way (Q, MENU, INFO): not wiped; hud_step sets it again */
-#endif
-    }
     /* LiveView on is never Canon's playback: it was left some way the keys below don't show
      * (log of 2026-11-12: Trash erased, LiveView came back, the flag stayed half a minute) */
     if (canon_play && lv)

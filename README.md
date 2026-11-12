@@ -43,6 +43,7 @@ If the camera doesn't start, take the battery out and remove the card. Without t
 | **Less memory at power on** | 380 KB instead of 549 KB, because the film OS loads as a module after start-up. |
 | **Print sizes and date stamp** | Small, Medium and Large prints, zoom in Prints, and a date stamp. These are ported from M-Film 0.2. |
 | **Without LiveView** | M-Film opens with the viewfinder too, not only in LiveView. |
+| **No readout over LiveView** | While you shoot you see Canon's own screen. The original's HUD and top plate are off on this camera: Canon's screen can't be kept from drawing over them on the 6D Mark II, and the two flickered over each other. The Viewfinder page and the wind lever went with them. |
 | **One button scheme** | MENU goes back, PLAY opens Prints and Trash returns to the camera. INFO is the screen's second action and SET selects. This is the same on every screen. |
 | **Fixes** | Dates in the roll list. No leftovers on screen after Prints. Trash works again in Canon's format screen, for low-level format. The shelf is cleaner on the 6D Mark II's screen. |
 

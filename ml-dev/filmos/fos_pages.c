@@ -96,7 +96,8 @@ static void film_card()
 
 /* ---------------------------------------------------------------- home */
 
-enum { H_FILM, H_ROLL, H_DARK, H_FINDER, H_LENS, H_SYSTEM, H_COUNT };
+/* no Viewfinder row: the HUD is gone on the 6D2 fork (2026-11-12), Canon's screen couldn't be kept off it */
+enum { H_FILM, H_ROLL, H_DARK, H_LENS, H_SYSTEM, H_COUNT };
 
 static int home_sel;
 static struct spring home_hl;
@@ -139,7 +140,6 @@ static void home_open(int i)
         case H_FILM:   ui_go(SCR_SHELF, 1, GO_PUSH); break;
         case H_ROLL:   ui_go(SCR_ROLL, 0, GO_PUSH); break;
         case H_DARK:   ui_go(SCR_DARK, 0, GO_PUSH); break;
-        case H_FINDER: ui_go(SCR_PAGE, 0, GO_PUSH); break;
         case H_LENS:   ui_go(SCR_PAGE, 1, GO_PUSH); break;
         case H_SYSTEM: ui_go(SCR_PAGE, 2, GO_PUSH); break;
     }
@@ -195,8 +195,8 @@ int home_update(int dt)
 
 static void home_row(int i, int y, int selected)
 {
-    static const char *titles[H_COUNT] = { "Film", "Roll", "Darkroom", "Viewfinder", "Lens", "System" };
-    static const int icons[H_COUNT] = { ICON_FILM, ICON_ROLL, ICON_PRINTS, ICON_FINDER, ICON_LENS, ICON_SYSTEM };
+    static const char *titles[H_COUNT] = { "Film", "Roll", "Darkroom", "Lens", "System" };
+    static const int icons[H_COUNT] = { ICON_FILM, ICON_ROLL, ICON_PRINTS, ICON_LENS, ICON_SYSTEM };
     char sub[80];
     char ap[8];
     switch (i)
@@ -212,10 +212,6 @@ static void home_row(int i, int y, int selected)
             break;
         case H_DARK:
             snprintf(sub, sizeof(sub), "Develop your rolls " T_DOT " your prints");
-            break;
-        case H_FINDER:
-            snprintf(sub, sizeof(sub), "HUD %s " T_DOT " wind %s", fos_port_get(FS_HUD) ? "on" : "off",
-                     fos_port_get(FS_WIND) == 0 ? "off" : fos_port_get(FS_WIND) == 1 ? "reminder" : "locks shutter");
             break;
         case H_LENS:
             fos_format_fstop(ap, sizeof(ap), fos_port_get(FS_FSTOP));
@@ -316,7 +312,7 @@ static const struct item finder_items[] =
 static const struct item lens_items[] =
 {
     { "Lens", IT_INFO, -1, 0, 0, "Adapted manual lenses report no aperture: set it here." },
-    { "Aperture", IT_FSTOP, FS_FSTOP, 0, 0, "The f-stop on the lens ring. Shown in the HUD, logged for the lab." },
+    { "Aperture", IT_FSTOP, FS_FSTOP, 0, 0, "The f-stop on the lens ring, logged for the lab and shown on the prints." },
     { "Widest aperture", IT_FSTOP, FS_LENS_WIDE, 0, 0, "Your manual lens' widest f-stop: the ring stops there." },
     { "Aperture control", IT_CHOICE, FS_APKEYS, apkey_choices, 3, "How to turn the aperture ring in LiveView." },
 };
@@ -527,7 +523,7 @@ void page_key(int k)
             break;
         case FK_MENU:
             if (page == PAGE_SCREEN) ui_go(SCR_PAGE, PAGE_SYSTEM | SYS_SCREEN_ROW << 4, GO_POP);
-            else ui_go(SCR_HOME, page + H_FINDER, GO_POP);
+            else ui_go(SCR_HOME, page + H_LENS - 1, GO_POP);     /* page 1 Lens, 2 System */
             break;
         case FK_PLAY:                   /* PLAY: the prints, from any screen (the buttons, 2026-11-10) */
             ui_go(SCR_PRINTS, 0, GO_FADE);

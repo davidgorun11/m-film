@@ -48,6 +48,7 @@ The card files end up in `ml-dev/out/fork-6D2.111/`. The release zip is those fi
   | SET | select |
   | Half-shutter, LV | camera |
 
+- **No HUD.** The HUD over LiveView and the top plate on the back screen are off: on the 6D Mark II Canon's screen can't be held (its `WINSYS_BMP_DIRTY_BIT_NEG` is a placeholder), and wiping what Canon drew still showed. The Viewfinder page and the wind lever (its reminder was on the HUD) are gone too.
 - **Fixes.**
   - The roll list shows dates.
   - No leftovers on screen after leaving Prints with the shutter.
