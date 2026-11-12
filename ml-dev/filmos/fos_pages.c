@@ -629,8 +629,10 @@ void page_key(int k)
             }
             break;
         case FK_SET:
-            /* toggles, choices and f-stops change with ◀ ▶ only: SET there would just be a third way (6D2 fork) */
-            if (it->kind == IT_PAGE) ui_go(SCR_PAGE, it->setting, GO_PUSH);
+            /* SET answers on every row (6D2 fork): a value turns to the next one, as ▶ does (choices go
+             * round); a page opens; an action runs */
+            if (it->kind == IT_TOGGLE || it->kind == IT_CHOICE || it->kind == IT_FSTOP) change(it, 1);
+            else if (it->kind == IT_PAGE) ui_go(SCR_PAGE, it->setting, GO_PUSH);
             else if (it->kind == IT_ACTION && it->setting == ACT_SCR_RESET)
             {
                 fos_port_set(FS_SCR_STD, 0);
