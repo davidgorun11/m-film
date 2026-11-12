@@ -1594,8 +1594,35 @@ static void meter_snap()
 }
 #endif
 
+/* Canon's playback, as far as we can tell: on the 6D2 it shows in none of gui_state, the GUI mode or
+ * DISPLAY_IS_ON (log of 2026-11-12: PLAY inside playback read 0/0/0, as the shooting screen does), so
+ * it is remembered from the keys instead. A PLAY that goes on to Canon opens it; the shutter, PLAY,
+ * MENU and LV leave it, as Canon has them do. Inside, every key is Canon's: Trash erases, the dial
+ * turns the pictures. ponytail: a guess from the keys; a playback Canon ends by itself (power save)
+ * keeps the flag until one of those keys, if a real playback flag is found, use that. */
+static int canon_play = 0;
+
 static unsigned int lv_key(unsigned int key)
 {
+    if (canon_play)
+    {
+        if (key == MODULE_KEY_PRESS_HALFSHUTTER || key == MODULE_KEY_PRESS_FULLSHUTTER || key == MODULE_KEY_PLAY ||
+            key == MODULE_KEY_MENU || key == MODULE_KEY_REC || key == MODULE_KEY_LV)
+        {
+            canon_play = 0;
+            dbg("key %d: Canon's playback ends", key);
+        }
+        else if (key == MODULE_KEY_TRASH)
+            dbg("key %d: Canon's playback: Trash is Canon's (erase)", key);
+        return 2;                       /* straight to Canon: ML would take Trash for its menu here */
+    }
+    if (key == MODULE_KEY_PLAY && !(play_lock && shooting_screen()))
+    {
+        canon_play = 1;
+        dbg("key %d: PLAY to Canon, its playback starts", key);
+        return 2;
+    }
+
     /* what used to open the Magic Lantern menu opens home instead */
     if (key == MODULE_KEY_TRASH || key == MODULE_KEY_TOUCH_2_FINGER || key == MODULE_KEY_PLAY)
         dbg("key %d: lv=%d display=%d gui_state=%d gui_mode=%d menu=%d movie=%d -> %s", key, lv, DISPLAY_IS_ON, gui_state,
@@ -1710,7 +1737,7 @@ int handle_filmroll_keys(struct event *event)
 
 int filmroll_menu_requested()
 {
-    if (shooting_screen())
+    if (shooting_screen() && !canon_play)     /* never over Canon's playback */
         open_ui(FOS_OPEN_HOME);
     return 1;
 }

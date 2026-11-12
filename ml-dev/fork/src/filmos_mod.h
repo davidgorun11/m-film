@@ -94,7 +94,8 @@ static unsigned int filmos_deinit()
  * module is loaded. */
 int filmos_key_used(struct event *event)
 {
-    return handle_filmroll_keys(event) == 0;
+    int r = handle_filmroll_keys(event);
+    return r == 0 ? 1 : r == 2 ? 2 : 0;     /* used / straight to Canon / carry on (filmhook.c) */
 }
 
 int filmos_menu_open()

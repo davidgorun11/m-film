@@ -19,7 +19,9 @@ static int (*filmos_overlays)(void)                = MODULE_FUNCTION(filmos_over
 
 int handle_filmroll_keys(struct event *event)
 {
-    return filmos_key_used(event) ? 0 : 1;
+    /* the module: 1 it used the key, 2 it goes straight to Canon, 0 (or no module) carry on */
+    int u = filmos_key_used(event);
+    return u == 1 ? 0 : u == 2 ? 2 : 1;
 }
 
 int filmroll_menu_requested()

@@ -343,7 +343,7 @@ index 6b1f5e479..cf2149e95 100644
      redraw();
  }
 diff --git a/src/gui-common.c b/src/gui-common.c
-index 992e8f692..13f631291 100644
+index 992e8f692..57da10783 100644
 --- a/src/gui-common.c
 +++ b/src/gui-common.c
 @@ -8,6 +8,7 @@
@@ -354,12 +354,17 @@ index 992e8f692..13f631291 100644
  #include <lens.h>
  #include <config.h>
  #include <lvinfo.h>
-@@ -505,6 +506,9 @@ int handle_common_events_by_feature(struct event * event)
+@@ -505,6 +506,14 @@ int handle_common_events_by_feature(struct event * event)
      if (handle_zoom_overlay(event) == 0) return 0;
      #endif
  
 +#ifdef FEATURE_FILMROLL
-+    if (handle_filmroll_keys(event) == 0) return 0;
++    {
++        /* 0 the film OS used it, 2 straight to Canon past the rest of ML (Canon's playback, 6D2 fork) */
++        int r = handle_filmroll_keys(event);
++        if (r == 0) return 0;
++        if (r == 2) return 1;
++    }
 +#endif
      if (handle_module_keys(event) == 0) return 0;
      if (handle_flexinfo_keys(event) == 0) return 0;
