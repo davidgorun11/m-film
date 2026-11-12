@@ -1620,6 +1620,13 @@ static int canon_play = 0;
 
 static unsigned int lv_key(unsigned int key)
 {
+    /* LiveView on is never Canon's playback: it was left some way the keys below don't show
+     * (log of 2026-11-12: Trash erased, LiveView came back, the flag stayed half a minute) */
+    if (canon_play && lv)
+    {
+        canon_play = 0;
+        dbg("key %d: LiveView is on, Canon's playback was left", key);
+    }
     if (canon_play)
     {
         if (key == MODULE_KEY_PRESS_HALFSHUTTER || key == MODULE_KEY_PRESS_FULLSHUTTER || key == MODULE_KEY_PLAY ||
