@@ -10,7 +10,7 @@ brand, name, box speed, and kind:
 
 films.py turns them into lab films: the colour from the LUT, the rest
 (scanner exposure, halation, grain, softness) from the kind and speed.
-The LUTs take ordinary sRGB pictures as input.
+The LUTs take ordinary sRGB pictures as input, except the print ones (log, #107).
 """
 
 REPO = "https://github.com/YahiaAngelo/Film-Luts"
@@ -117,7 +117,8 @@ def film(key, path, brand, name, iso, kind):
     amount, size = GRAIN.get(key) or grain_for(iso, kind)
     f = dict(
         name=f"{brand} {name}", iso=iso, kind=kind, balance=5500,
-        lut=f"{DIR}/{path}.cube", lut_space="srgb",
+        # the print tables are Juan Melara's, made for log film scans in Rec.709 (#107): Cineon, the scan's own encoding
+        lut=f"{DIR}/{path}.cube", lut_space="cineon" if kind == "print" else "srgb",
         # the film's own colour when the LUT isn't there: a plain print
         ev=0.2 if kind == "neg" else 0.0, sat=1.0,
         contrast=(0.18, 0.18, 0.18), pivot=(0.0, 0.0, 0.0),
