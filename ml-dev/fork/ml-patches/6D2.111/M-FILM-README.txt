@@ -41,7 +41,7 @@ If something goes wrong
     Its line in the Modules tab says why.
   - Logs for a bug report: ML/FILMROLL.LOG on the card. Report problems with this build to the
     fork, not to HNGSeries:
-    https://github.com/davidgorun11/mfilm-canon-film-simulation/issues
+    https://github.com/davidgorun11/mfilm-canon-6D-Mark-II/issues
 
 Remove
   Format the card in the camera, or delete autoexec.bin and ML/. A card without Magic Lantern
@@ -61,6 +61,6 @@ Buttons, the same on every screen
   Half-press the shutter or press LV: to the camera
 
 Free software (GPL-2.0, LICENSE.txt). The source of this build is the 6d2 branch at
-https://github.com/davidgorun11/mfilm-canon-film-simulation
+https://github.com/davidgorun11/mfilm-canon-6D-Mark-II
 The original M-Film is at https://github.com/HNGSeries/mfilm-canon-film-simulation
 Other parts and their licences, among them the Film-Luts colours: THIRD_PARTY.txt.
