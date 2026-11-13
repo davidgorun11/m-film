@@ -18,7 +18,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from filmluts import DIR, REPO, STOCKS, ZIP
+from filmluts import COMMIT, DIR, REPO, STOCKS, ZIP
 
 HERE = Path(__file__).resolve().parent
 
@@ -39,7 +39,7 @@ def from_zip(want):
     data = zipfile.ZipFile(io.BytesIO(download(ZIP)))
     out = {}
     for name in data.namelist():
-        rel = name.split("/", 1)[1] if "/" in name else name     # drop "Film-Luts-main/"
+        rel = name.split("/", 1)[1] if "/" in name else name     # drop "Film-Luts-<commit>/"
         if rel in want:
             out[rel] = data.read(name)
     return out
@@ -52,7 +52,9 @@ def from_dir(root, want):
 
 def from_git(want):
     with tempfile.TemporaryDirectory() as tmp:
-        subprocess.run(["git", "clone", "--depth", "1", "-q", REPO, tmp], check=True)
+        subprocess.run(["git", "init", "-q", tmp], check=True)
+        subprocess.run(["git", "-C", tmp, "fetch", "-q", "--depth", "1", REPO, COMMIT], check=True)
+        subprocess.run(["git", "-C", tmp, "checkout", "-q", "FETCH_HEAD"], check=True)
         return from_dir(tmp, want)
 
 
@@ -65,7 +67,7 @@ def main():
     if a.src:
         files = from_dir(a.src, want)
     else:
-        print(f"downloading {REPO} ...")
+        print(f"downloading {REPO} at {COMMIT[:7]} ...")
         try:
             files = from_zip(want)
         except Exception as e:                   # no zip: try git

@@ -14,7 +14,8 @@ The LUTs take ordinary sRGB pictures as input.
 """
 
 REPO = "https://github.com/YahiaAngelo/Film-Luts"
-ZIP = "https://codeload.github.com/YahiaAngelo/Film-Luts/zip/refs/heads/main"
+COMMIT = "af957b631a304e6be94778b96cb3395de3438e9f"   # 2024-03-07: one commit, so a release's colour never moves with that repository (#102)
+ZIP = f"https://codeload.github.com/YahiaAngelo/Film-Luts/zip/{COMMIT}"
 DIR = "filmluts"                    # under films/luts/
 
 STOCKS = [
