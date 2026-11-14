@@ -1443,6 +1443,8 @@ static __attribute__((noinline)) void scatter(struct fos_dev *d, const uint16_t 
 
 #if defined(FOS_HELPER) || defined(FOS_BIG2)
 int fos_port_helper(void (*fn)(void *), void *arg);    /* fn(arg) on the other core (DIGIC 7's CPU1); 0: none */
+void fos_port_wake_wait();              /* the helper sleeps here until woken: its core free for Canon meanwhile */
+void fos_port_wake();
 #endif
 
 #ifdef FOS_HELPER
@@ -2252,6 +2254,9 @@ void fos_dev_free(struct fos_dev *d)
     big_free(d);
     fos_port_free(d->smask[0]); fos_port_free(d->smask[1]);
     fos_port_free(d);
+#ifdef FOS_BIG2
+    fos_port_log("dev: frame freed");   /* (2026-11-14: where the camera restarted, to narrow it down) */
+#endif
 }
 
 const uint8_t *fos_dev_thumb(const struct fos_dev *d)
@@ -2872,7 +2877,9 @@ static void bwork_run(void *arg)
     int last = 0;
     for (;;)
     {
-        while (!w->quit && w->seq == last) {}
+        /* asleep between jobs, so Canon's tasks on this core aren't kept from it
+         * (2026-11-14: 12 s of spinning here, and the camera restarted after) */
+        while (!w->quit && w->seq == last) fos_port_wake_wait();
         if (w->quit) break;
         __sync_synchronize();
         last = w->seq;
@@ -2895,6 +2902,7 @@ static void bwork_post(struct bwork *w, int job, int y0, int n, int row0)
     w->job = job; w->y0 = y0; w->n = n; w->row0 = row0;
     __sync_synchronize();
     w->seq++;
+    fos_port_wake();
 }
 
 static void bwork_wait(struct bwork *w)
@@ -2925,9 +2933,11 @@ static void bwork_stop(struct fos_dev *d)
     if (!w) return;
     w->quit = 1;
     __sync_synchronize();
+    fos_port_wake();
     while (!w->gone) {}                 /* it ends its job first, if one is on */
     fos_port_free(w);
     d->bwork = 0;
+    fos_port_log("dev: the other core's task has ended");
 }
 #endif
 

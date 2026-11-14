@@ -1636,13 +1636,25 @@ static int cpu_now(void)
     return (int) (r & 3);
 }
 
-#define HELP_PRIO 0x1e                  /* below the film OS task (0x1a): Canon's own tasks on CPU1 come first (as fast as 0x1b, 2026-11-14) */
+#define HELP_PRIO 0x1f                  /* the lowest: Canon's own tasks on CPU1 come first (0x1e was as fast as 0x1b, 2026-11-14) */
 
 /* fn(arg) on CPU1, as its own task that ends when fn returns; 0 if it couldn't start */
 int fos_port_helper(void (*fn)(void *), void *arg)
 {
     uint32_t r = task_create_ex("fos_help", HELP_PRIO, 0x2000, (void *) fn, arg, 1);
     return r != 0;
+}
+
+/* the helper's sleep between jobs: a semaphore, made once */
+static struct semaphore *help_sem;
+void fos_port_wake_wait()
+{
+    if (help_sem) take_semaphore(help_sem, 100);   /* and a look now and then, should a wake be missed */
+    else msleep(1);
+}
+void fos_port_wake()
+{
+    if (help_sem) give_semaphore(help_sem);
 }
 
 /* A loop of arithmetic and one through memory, timed on each core alone and on both at once
@@ -2034,6 +2046,11 @@ static void filmroll_task()
 #endif
 #ifdef CONFIG_6D2
     {
+        extern int fos_dev_big2;
+        help_sem = create_named_semaphore("fos_help", 0);
+        void *b1 = fos_port_open("ML/BIG1.TXT", 0);
+        if (b1) { fos_port_close(b1); fos_dev_big2 = 0; }
+        dbg("big print: %s", fos_dev_big2 ? "two cores (ML/BIG1.TXT for one)" : "one core (ML/BIG1.TXT)");
         /* ML/CPU1.TXT on the card: how much of the second core is ours (cpu_bench) */
         void *hf = fos_port_open("ML/CPU1.TXT", 0);
         if (hf)

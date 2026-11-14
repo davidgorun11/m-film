@@ -52,6 +52,12 @@ int fos_port_helper(void (*fn)(void *), void *arg)
     pthread_detach(t);
     return 1;
 }
+#include <semaphore.h>
+static sem_t wake;
+static int wake_ok;
+static void wake_init(void) { if (!wake_ok) { sem_init(&wake, 0, 0); wake_ok = 1; } }
+void fos_port_wake_wait() { wake_init(); sem_wait(&wake); }
+void fos_port_wake() { wake_init(); sem_post(&wake); }
 #endif
 void fos_port_log(const char *msg) { fprintf(stderr, "%s\n", msg); }
 void fos_port_free(void *p) { if (p) mem_used -= (long) malloc_usable_size(p); free(p); }
