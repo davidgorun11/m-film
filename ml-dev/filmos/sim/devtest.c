@@ -36,7 +36,7 @@ void *fos_port_alloc(int size)
 }
 int fos_port_dev_cap() { return 0; }
 
-#ifdef FOS_HELPER
+#if defined(FOS_HELPER) || defined(FOS_BIG2)
 /* the second core, as a thread (FOS_SPLIT=permille where it starts, 0 off) */
 #include <pthread.h>
 extern int fos_dev_split;
@@ -153,6 +153,10 @@ int main(int argc, char **argv)
     int t0 = fos_port_ms(), steps = 0, p = 0;
     struct fos_dev *d = fos_dev_start(argv[a], argv[a + 1], film, 1, "2026-10-22 17:45", "2.8");
     /* FOS_JPEG: the full-colour frame as a JPEG too, as the camera writes it to DCIM */
+#ifdef FOS_BIG2
+    extern int fos_dev_big2;
+    if (getenv("FOS_BIG2")) fos_dev_big2 = atoi(getenv("FOS_BIG2"));
+#endif
 #ifdef FOS_HELPER
     if (getenv("FOS_SPLIT")) fos_dev_split = atoi(getenv("FOS_SPLIT"));
 #endif

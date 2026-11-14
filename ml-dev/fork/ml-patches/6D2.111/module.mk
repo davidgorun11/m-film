@@ -19,3 +19,5 @@ CFLAGS += -I$(PLAT) -I$(PLAT)/include -I$(TOP_DIR)/src \
 # the 6D Mark II's Cortex-A9, not the ARMv5 of ML's other modules: ARM mode (the loader's relocations),
 # addresses from literal pools rather than movw/movt (ML's TCC doesn't take those relocations)
 CFLAGS += -march=armv7-a -mtune=cortex-a9 -marm -mword-relocations
+# the big print's rows on both cores (fos_dev.c, fos_port_helper in filmroll.c)
+CFLAGS += -DFOS_BIG2

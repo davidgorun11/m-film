@@ -1636,7 +1636,7 @@ static int cpu_now(void)
     return (int) (r & 3);
 }
 
-#define HELP_PRIO 0x1b                  /* just below the film OS task (0x1a) */
+#define HELP_PRIO 0x1e                  /* below the film OS task (0x1a): Canon's own tasks on CPU1 come first (as fast as 0x1b, 2026-11-14) */
 
 /* fn(arg) on CPU1, as its own task that ends when fn returns; 0 if it couldn't start */
 int fos_port_helper(void (*fn)(void *), void *arg)

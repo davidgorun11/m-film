@@ -28,7 +28,7 @@ clean:
 DEV = devtest.c port_files.c films.c ../fos_dev.c ../fos_print.c ../fos_looks.c ../fos_film.c ../fos_gfx.c ../fos_jpeg.c
 out/devtest: $(DEV) ../*.h out/FOSFILMS.BIN
 	mkdir -p out
-	$(CC) $(CFLAGS) -DFOS_DEV_TEST -DFOS_HELPER -pthread -o $@ $(DEV) -lm
+	$(CC) $(CFLAGS) -DFOS_DEV_TEST -DFOS_HELPER -DFOS_BIG2 -pthread -o $@ $(DEV) -lm
 
 # the same, loading words off their boundary the way the camera's ARM does (rotated):
 # a print that differs from out/devtest's has a read the camera gets wrong (lines, #6)

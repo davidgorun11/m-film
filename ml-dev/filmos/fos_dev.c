@@ -447,6 +447,8 @@ struct fos_dev
     int btrans;                         /* stored a column to a row, as the sensor's rows run (portrait): see big_setup */
     uint16_t *bblk;                     /* a portrait frame's BIG_ROWS rows, gathered from its columns to be finished */
     unsigned bus[9];                    /* us in the big print's parts: gather, cam, lin, pos, lut, grain, jpeg, dither, write */
+    unsigned bseed0;                    /* the grain's generator where the big print starts: a row's is reckoned from it */
+    struct bwork *bwork;                /* the other core's share of it (FOS_BIG2), or 0 */
     uint16_t *bband[BIG_BANDS];
     uint8_t *barena;                    /* the block the tables below are in */
     uint16_t *bcmap, *brmap;            /* raw column / row -> its line of the print, 0xFFFF: none */
@@ -768,6 +770,10 @@ static int refill(struct fos_dev *d, const uint8_t *bp, int keep)
 
 static void big_free(struct fos_dev *d);
 static int big_setup(struct fos_dev *d, int size);
+#ifdef FOS_BIG2
+static void bwork_start(struct fos_dev *d);
+static void bwork_stop(struct fos_dev *d);
+#endif
 
 /* ---- the print's geometry: which raw rows and columns land where */
 
@@ -1435,6 +1441,10 @@ static __attribute__((noinline)) void scatter(struct fos_dev *d, const uint16_t 
     d->black_sum = black_sum; d->black_n = black_n;
 }
 
+#if defined(FOS_HELPER) || defined(FOS_BIG2)
+int fos_port_helper(void (*fn)(void *), void *arg);    /* fn(arg) on the other core (DIGIC 7's CPU1); 0: none */
+#endif
+
 #ifdef FOS_HELPER
 /* ---- the second core (DIGIC 7's CPU1)
  *
@@ -1449,7 +1459,6 @@ static __attribute__((noinline)) void scatter(struct fos_dev *d, const uint16_t 
  * helper's in place of the bit reader's: prediction and summing only.
  * Any doubt and it simply goes on decoding: the print is the same either way. */
 
-int fos_port_helper(void (*fn)(void *), void *arg);    /* fn(arg) on the other core; 0: none */
 int fos_dev_split = 380;                /* where the helper starts, 1/1000 of the data (best on a PC, 2026-11-13); 0: no helper */
 
 #define HELP_SKIP   8192                /* bits the helper decodes before it trusts where it is */
@@ -2228,6 +2237,9 @@ void fos_dev_free(struct fos_dev *d)
 #ifdef FOS_HELPER
     help_end(d);
 #endif
+#ifdef FOS_BIG2
+    bwork_stop(d);
+#endif
     if (d->f) fos_port_close(d->f);
     fos_port_free(d->buf); fos_port_free(d->rowoff); fos_port_free(d->seg_of);
     fos_port_free(d->seg_x0); fos_port_free(d->seg_off); fos_port_free(d->seg_desc); fos_port_free(d->desc_off); fos_port_free(d->seg_piece);
@@ -2674,6 +2686,7 @@ static void big_begin(struct fos_dev *d)
 {
     const int bw = d->bw, bh = d->bh;
     char msg[200];
+    d->bseed0 = d->seed;
     for (int x = 0; x < bw; x++) { float t = 2.0f * x / (bw - 1) - 1; d->bvig_x[x] = (int16_t) (0.06f * t * t * 4096); }
     for (int k = 0; k < bh; k++) { float t = 2.0f * k / (bh - 1) - 1; d->bvig_y[k] = (int16_t) (0.06f * t * t * 4096); }
     /* a column's place on the glow's grid, by where it is on the screen's print */
@@ -2708,6 +2721,9 @@ static void big_begin(struct fos_dev *d)
         }
     }
     if (d->stamp) d->smask[1] = stamp_mask(d->when, stamp_scale(bw, bh), &d->sm_w[1], &d->sm_h[1]);
+#ifdef FOS_BIG2
+    bwork_start(d);
+#endif
 }
 
 /* a finished row to the print's palette, as dither_rows: for the zoom file */
@@ -2772,25 +2788,45 @@ static __attribute__((noinline)) unsigned big_grain(uint8_t *o, int n, unsigned 
     return seed;
 }
 
+/* the grain's generator n draws on, at once: x -> a x + c, n times, is
+ * x -> A x + C, A and C built from the generator squared and squared again */
+static unsigned lcg_jump(unsigned x, unsigned n)
+{
+    unsigned a = 1664525u, c = 1013904223u, A = 1, C = 0;
+    for (; n; n >>= 1)
+    {
+        if (n & 1) { A *= a; C = C * a + c; }
+        c *= a + 1;
+        a *= a;
+    }
+    return A * x + C;
+}
+
+/* a core's own room for a row at work, and where its time goes */
+struct bscratch { uint32_t *t32; uint16_t *cam, *lin; unsigned *bus; };
+
 /* row y of the big print into rgb: as stage_expose and stage_finish do a
  * row of the screen's, from its own sums, with the exposure and the glow
- * the screen's print found */
-static __attribute__((noinline)) void big_finish(struct fos_dev *d, int y, uint8_t *rgb)
+ * the screen's print found. A row's grain starts where the rows above it
+ * left the generator, reckoned rather than run to, so rows can be done
+ * on either core in any order and come out the same. */
+static __attribute__((noinline)) void big_finish(struct fos_dev *d, int y, uint8_t *rgb, const struct bscratch *sc)
 {
     const int bw = d->bw, sh = d->bshift;
     const struct fos_look *L = d->look;
     const uint16_t *s = d->btrans ? d->bblk + (y % BIG_ROWS) * bw * 3 : d->brow[y];
-    uint32_t *t32 = d->b32;
+    uint32_t *t32 = sc->t32;
+    unsigned *bus = sc->bus;
     unsigned u0 = FOS_US(), u1;
     for (int i = 0; i < 3 * bw; i++) t32[i] = (uint32_t) s[i] << sh;
     int a, b;
     const uint16_t *ra, *rb;
     if (d->rows_axis_x) { a = d->bne_c[y]; b = d->bno_c[y]; ra = d->bne_r; rb = d->bno_r; }
     else { a = d->bne_r[y]; b = d->bno_r[y]; ra = d->bne_c; rb = d->bno_c; }
-    expose_cam(d, t32, d->bcam, bw, a, b, ra, rb);
-    u1 = FOS_US(); d->bus[1] += u1 - u0; u0 = u1;
-    expose_lin(d, d->bcam, d->blin, bw, 0, 0);
-    u1 = FOS_US(); d->bus[2] += u1 - u0; u0 = u1;
+    expose_cam(d, t32, sc->cam, bw, a, b, ra, rb);
+    u1 = FOS_US(); bus[1] += u1 - u0; u0 = u1;
+    expose_lin(d, sc->cam, sc->lin, bw, 0, 0);
+    u1 = FOS_US(); bus[2] += u1 - u0; u0 = u1;
     int hal[3];
     for (int c = 0; c < 3; c++) hal[c] = d->glow ? (int) (L->halation * L->hal_tint[c] * 256) : 0;
     int32_t grow[GW];
@@ -2801,15 +2837,99 @@ static __attribute__((noinline)) void big_finish(struct fos_dev *d, int y, uint8
         const int32_t *g0 = d->glow + gy * GW, *g1 = g0 + GW;
         for (int j = 0; j < GW; j++) grow[j] = g0[j] * (8 - fy) + g1[j] * fy;
     }
-    finish_pos(d->blin, d->bcam, bw, 4096 - d->bvig_y[y], d->bvig_x, d->glow ? grow : 0, d->bgx, d->bfx, hal);
-    u1 = FOS_US(); d->bus[3] += u1 - u0; u0 = u1;
-    finish_lut(d->bcam, rgb, bw);
-    u1 = FOS_US(); d->bus[4] += u1 - u0; u0 = u1;
+    finish_pos(sc->lin, sc->cam, bw, 4096 - d->bvig_y[y], d->bvig_x, d->glow ? grow : 0, d->bgx, d->bfx, hal);
+    u1 = FOS_US(); bus[3] += u1 - u0; u0 = u1;
+    finish_lut(sc->cam, rgb, bw);
+    u1 = FOS_US(); bus[4] += u1 - u0; u0 = u1;
     int grain = (int) (L->grain * 255 * 0.55f * 256);
-    if (grain) d->seed = big_grain(rgb, bw, d->seed, grain, L->mono);
+    if (grain) big_grain(rgb, bw, lcg_jump(d->bseed0, (unsigned) y * (unsigned) bw), grain, L->mono);
     stamp_row(d->smask[1], d->sm_w[1], d->sm_h[1], rgb, bw, d->bh, y);
-    d->bus[5] += FOS_US() - u0;
+    bus[5] += FOS_US() - u0;
 }
+
+#ifdef FOS_BIG2
+/* ---- the big print on two cores (6D2: CPU1 is free, the two run side by side at full speed)
+ *
+ * Its rows a band at a time (BIG_ROWS): the other core finishes the band's
+ * lower half while this one does the upper, then dithers the band for the
+ * zoom file while this one compresses it into the JPEG and writes. Files
+ * stay with this core. The other spins between bands (a few ms). */
+int fos_dev_big2 = 1;                   /* 0: one core (devtest FOS_BIG2=0, to compare) */
+
+struct bwork
+{
+    struct fos_dev *d;
+    volatile int seq, done, quit, gone;
+    int job, y0, n, row0;               /* job 1: finish rows y0 .. y0 + n - 1; 2: dither them; row0: the band's first */
+    unsigned bus[9];
+    struct bscratch sc;
+};
+
+static void bwork_run(void *arg)
+{
+    struct bwork *w = arg;
+    struct fos_dev *d = w->d;
+    int last = 0;
+    for (;;)
+    {
+        while (!w->quit && w->seq == last) {}
+        if (w->quit) break;
+        __sync_synchronize();
+        last = w->seq;
+        const int bw = d->bw;
+        for (int i = 0; i < w->n; i++)
+        {
+            int y = w->y0 + i, k = y - w->row0;
+            if (w->job == 1) big_finish(d, y, d->brgb + k * bw * 3, &w->sc);
+            else big_dither(d, d->brgb + k * bw * 3, d->bidx + k * bw, y);
+        }
+        __sync_synchronize();
+        w->done = last;
+    }
+    __sync_synchronize();
+    w->gone = 1;
+}
+
+static void bwork_post(struct bwork *w, int job, int y0, int n, int row0)
+{
+    w->job = job; w->y0 = y0; w->n = n; w->row0 = row0;
+    __sync_synchronize();
+    w->seq++;
+}
+
+static void bwork_wait(struct bwork *w)
+{
+    while (w->done != w->seq) {}
+    __sync_synchronize();
+}
+
+static void bwork_start(struct fos_dev *d)
+{
+    if (!fos_dev_big2) return;
+    const int bw = d->bw;
+    struct bwork *w = fos_port_alloc(sizeof(*w) + bw * 3 * 4 + bw * 3 * 2 * 2);
+    if (!w) return;
+    memset(w, 0, sizeof(*w));
+    w->d = d;
+    w->sc.t32 = (uint32_t *) (w + 1);
+    w->sc.cam = (uint16_t *) (w->sc.t32 + bw * 3);
+    w->sc.lin = w->sc.cam + bw * 3;
+    w->sc.bus = w->bus;
+    if (!fos_port_helper(bwork_run, w)) { fos_port_free(w); return; }
+    d->bwork = w;
+}
+
+static void bwork_stop(struct fos_dev *d)
+{
+    struct bwork *w = d->bwork;
+    if (!w) return;
+    w->quit = 1;
+    __sync_synchronize();
+    while (!w->gone) {}                 /* it ends its job first, if one is on */
+    fos_port_free(w);
+    d->bwork = 0;
+}
+#endif
 
 /* its next rows, to the JPEG and the zoom file */
 static void big_rows(struct fos_dev *d)
@@ -2828,8 +2948,39 @@ static void big_rows(struct fos_dev *d)
         }
     }
     d->bus[0] += FOS_US() - u0;
+    const struct bscratch sc = { d->b32, d->bcam, d->blin, d->bus };
+#ifdef FOS_BIG2
+    struct bwork *w = d->bwork;
+    if (w)
+    {
+        const int h = n / 2;
+        bwork_post(w, 1, y0 + h, n - h, y0);
+        for (int i = 0; i < h; i++)
+            big_finish(d, y0 + i, d->brgb + i * bw * 3, &sc);
+        bwork_wait(w);
+        if (d->bzoom) bwork_post(w, 2, y0, n, y0);
+        u0 = FOS_US();
+        if (d->bjpeg) fos_jpeg_rows(d->bjpeg, d->brgb, bw * 3, n);
+        u1 = FOS_US(); d->bus[6] += u1 - u0; u0 = u1;
+        if (d->bzoom)
+        {
+            bwork_wait(w);
+            u1 = FOS_US(); d->bus[7] += u1 - u0; u0 = u1;   /* here: the wait for the other core's dithering */
+            int wr = fos_port_write(d->bzoom, d->bidx, n * bw);
+            d->bus[8] += FOS_US() - u0;
+            if (wr != n * bw)
+            {
+                fos_port_log("dev: the zoom file couldn't all be written");
+                fos_port_close(d->bzoom);
+                d->bzoom = 0;
+            }
+        }
+        d->row += n;
+        return;
+    }
+#endif
     for (int i = 0; i < n; i++)
-        big_finish(d, y0 + i, d->brgb + i * bw * 3);
+        big_finish(d, y0 + i, d->brgb + i * bw * 3, &sc);
     u0 = FOS_US();
     if (d->bjpeg) fos_jpeg_rows(d->bjpeg, d->brgb, bw * 3, n);
     u1 = FOS_US(); d->bus[6] += u1 - u0; u0 = u1;
@@ -2852,6 +3003,12 @@ static void big_rows(struct fos_dev *d)
 
 static void big_end(struct fos_dev *d)
 {
+    /* the generator where the rows left it, as if run through them */
+    if ((int) (d->look->grain * 255 * 0.55f * 256)) d->seed = lcg_jump(d->bseed0, (unsigned) d->bw * (unsigned) d->bh);
+#ifdef FOS_BIG2
+    if (d->bwork) fos_port_log("dev: big print on two cores (the times are this core's: dither is its wait for the other)");
+    bwork_stop(d);
+#endif
     {
         char t[200];
         const unsigned *u = d->bus;
