@@ -346,6 +346,34 @@ static void frames_log(void *ctx, const char *folder, const char *name, int numb
     read_log(path, &rd);
 }
 
+/* a frame's RAW in another DCIM folder: Canon writes to its highest-numbered
+ * one whatever it is called, so a folder put on the card by hand (101TEST_,
+ * 2026-11-14) took a roll's frames while its log went to 101CANON */
+struct find_raw { const char *name; char *path; int size; void *f; };
+
+static int find_raw_in(void *ctx, const char *name, int is_dir)
+{
+    struct find_raw *c = ctx;
+    if (c->f || !is_dir || strlen(name) != 8 || name[0] < '1' || name[0] > '9') return 1;
+    char was[160];
+    snprintf(was, sizeof(was), "%s", c->path);
+    snprintf(c->path, c->size, "%sDCIM/%s/%s", fos_port_card(), name, c->name);
+    c->f = fos_port_open(c->path, 0);
+    if (!c->f) snprintf(c->path, c->size, "%s", was);
+    return 1;
+}
+
+static void *open_raw_elsewhere(char *path, int size)
+{
+    const char *base = strrchr(path, '/');
+    char name[16], dir[64];
+    snprintf(name, sizeof(name), "%s", base ? base + 1 : path);
+    struct find_raw c = { name, path, size, 0 };
+    snprintf(dir, sizeof(dir), "%sDCIM", fos_port_card());
+    fos_port_list(dir, find_raw_in, &c);
+    return c.f;
+}
+
 int fos_lab_frames(int roll, struct fos_lab_frame *frames, int max)
 {
     memset(frames, 0, sizeof(*frames) * max);
@@ -378,6 +406,7 @@ int fos_lab_frames(int roll, struct fos_lab_frame *frames, int max)
                 if (!f) *base = was;
             }
         }
+        if (!f) f = open_raw_elsewhere(frames[i].cr2, sizeof(frames[i].cr2));
         if (f) fos_port_close(f);
         else frames[i].missing = 1;
     }
