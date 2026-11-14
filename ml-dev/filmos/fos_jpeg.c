@@ -314,10 +314,15 @@ struct fos_jpeg *fos_jpeg_begin(const char *path, int width, int height, int qua
     if (!w->f) { fos_port_free(j); return 0; }
 
     put16(w, 0xFFD8);
-    /* JFIF */
-    put16(w, 0xFFE0); put16(w, 16);
-    static const uint8_t jfif[14] = { 'J', 'F', 'I', 'F', 0, 1, 1, 0, 0, 1, 0, 1, 0, 0 };
-    for (int i = 0; i < 14; i++) put8(w, jfif[i]);
+    /* JFIF only when there's no EXIF: with EXIF, EXIF comes right after SOI, as
+     * camera files have it. A JFIF ahead of it and the 6D Mark II's playback
+     * won't open the file at all (2026-11-14, DCIM/101TEST_ on the camera) */
+    if (!meta)
+    {
+        put16(w, 0xFFE0); put16(w, 16);
+        static const uint8_t jfif[14] = { 'J', 'F', 'I', 'F', 0, 1, 1, 0, 0, 1, 0, 1, 0, 0 };
+        for (int i = 0; i < 14; i++) put8(w, jfif[i]);
+    }
     /* EXIF */
     if (meta)
     {
