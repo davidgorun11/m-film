@@ -163,6 +163,7 @@ void fos_port_palette()
 
 void fos_port_photo(const uint8_t (*pal)[3], int n, int k)
 {
+    k &= 0x1FF;                         /* FOS_PHOTO_WITH_FRAME: here the palette goes up at once anyway */
     for (int i = 1; i < 255; i++)
     {
         const uint8_t *c = i <= n ? pal[i - 1] : i >= FOS_FIXED_BASE && i < FOS_FIXED_BASE + FOS_FIXED_N ?

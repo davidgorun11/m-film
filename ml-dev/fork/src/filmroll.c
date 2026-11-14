@@ -644,6 +644,7 @@ static uint32_t palette_probe = 0;
 /* a photograph on the screen: its colours in 1..photo_n, at photo_k/256 */
 static int photo_mode = 0, photo_n = 0, photo_k = 256;
 static uint8_t photo_pal[FOS_PRINT_COLOURS][3];
+static int photo_pending;                /* FOS_PHOTO_WITH_FRAME: palette_ours() at the next fos_port_present */
 
 static void palette_ours()
 {
@@ -1146,6 +1147,13 @@ void fos_port_present(const uint8_t *rows, int pitch, int y0, int y1)
         for (int y = y0; y < y1; y++)
             memcpy(idle + y * BMPPITCH, rows + (y - y0) * pitch, FOS_W);
 #endif
+    if (photo_pending)
+    {
+        /* a new print's colours with its pixels, in the same refresh (6D2 fork) */
+        photo_pending = 0;
+        palette_ours();
+        ui_last_palette = get_ms_clock();
+    }
 }
 
 void fos_port_palette()
@@ -1169,10 +1177,13 @@ void fos_port_palette()
 
 void fos_port_photo(const uint8_t (*pal)[3], int n, int k)
 {
+    int with_frame = (k & FOS_PHOTO_WITH_FRAME) != 0;
+    k &= 0x1FF;
     photo_n = COERCE(n, 0, FOS_PRINT_COLOURS);
     memcpy(photo_pal, pal, photo_n * 3);
     photo_k = COERCE(k, 0, 256);
     photo_mode = 1;
+    if (with_frame) { photo_pending = 1; return; }
     palette_ours();
     ui_last_palette = get_ms_clock();
 }

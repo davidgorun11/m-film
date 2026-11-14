@@ -1346,6 +1346,18 @@ static void pv_go(int next)
     pv_t = 0;
 }
 
+/* The next print in place of this one, at once: a fade rewrites the whole
+ * screen at each of its steps (the camera's layer takes 30 ms, a band
+ * going down the screen), ten of them to a change, and the prints looked
+ * to load a line at a time (2026-11-14). Its colours go up with its pixels. */
+static void pv_cut()
+{
+    if (pv_state != PV_SHOW) { pv_go(NEXT_LOAD); return; }
+    pv_load();
+    if (pv_have) fos_port_photo((const uint8_t (*)[3]) pv_print.pal, FOS_PRINT_COLOURS, 256 | FOS_PHOTO_WITH_FRAME);
+    else pv_palette(256);
+}
+
 static void pv_back()
 {
     if (pv_alone) ui_leave();
@@ -1393,7 +1405,7 @@ void prints_key(int k)
             int to = pv_cur + d;
             if (to < 1 || to > n) break;
             pv_cur = to;
-            if (pv_mode) pv_go(NEXT_LOAD);
+            if (pv_mode) pv_cut();
             else pv_dirty = 1;
             break;
         }
