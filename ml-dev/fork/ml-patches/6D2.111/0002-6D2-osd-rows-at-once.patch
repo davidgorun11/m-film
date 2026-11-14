@@ -1,0 +1,29 @@
+diff --git a/src/bmp.c b/src/bmp.c
+index 5ecbcc242..eb21b340b 100755
+--- a/src/bmp.c
++++ b/src/bmp.c
+@@ -281,11 +281,23 @@ void refresh_yuv_from_rgb(void)
+                     continue;
+                 row_hash[y] = h;
+                 uint32_t *dst = rgb_data + BMP_HDMI_OFFSET + y * BMPPITCH;
++                /* the row made in cached memory first, then written to the layer in one go:
++                 * a pixel at a time into the layer took 30 ms a frame, and a whole-screen
++                 * change (a print in the film OS, its fade) showed as a wipe down the
++                 * screen. A row with transparent pixels keeps the pixel-at-a-time rule
++                 * (Canon's screen stays under those). */
++                static uint32_t row[720];
++                uint32_t clear = 0;
+                 for (int x = 0; x < 720; x++)
+                 {
+                     uint32_t rgb = lut[src[x]];
+-                    if (rgb) dst[x] = rgb;
++                    row[x] = rgb;
++                    clear |= !rgb;
+                 }
++                if (!clear) memcpy(dst, row, sizeof(row));
++                else
++                    for (int x = 0; x < 720; x++)
++                        if (row[x]) dst[x] = row[x];
+             }
+         }
+ #else
