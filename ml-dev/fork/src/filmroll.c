@@ -1622,6 +1622,100 @@ static int ui_key(struct event *event, int key)
 static volatile int meter_snap_req = 0;
 static int meter_snap_n = 0;
 static int meter_hunt = 0;                /* ML/METER.TXT is on the card */
+
+#ifdef CONFIG_6D2
+/* ---- the second core: DIGIC 7 has two Cortex-A9s, CPU0 runs this module,
+ * CPU1 is shared with a few of Canon's tasks (ML's core itself starts one
+ * there at boot, init.c cpu1_ready). */
+extern unsigned long long get_us_clock(void);
+
+static int cpu_now(void)
+{
+    uint32_t r;
+    asm volatile("mrc p15, 0, %0, c0, c0, 5" : "=r"(r));
+    return (int) (r & 3);
+}
+
+#define HELP_PRIO 0x1b                  /* just below the film OS task (0x1a) */
+
+/* fn(arg) on CPU1, as its own task that ends when fn returns; 0 if it couldn't start */
+int fos_port_helper(void (*fn)(void *), void *arg)
+{
+    uint32_t r = task_create_ex("fos_help", HELP_PRIO, 0x2000, (void *) fn, arg, 1);
+    return r != 0;
+}
+
+/* A loop of arithmetic and one through memory, timed on each core alone and on both at once */
+struct cpu_job
+{
+    volatile int done;
+    int cpu;
+    unsigned us_alu, us_mem;
+    uint32_t sink;
+    uint32_t *buf;
+    int words;
+};
+
+static void cpu_job_run(void *arg)
+{
+    struct cpu_job *j = arg;
+    j->cpu = cpu_now();
+    unsigned t0 = (unsigned) get_us_clock();
+    uint32_t x = 12345;
+    for (int i = 0; i < 20000000; i++) { x = x * 1664525u + 1013904223u; x ^= x >> 13; }
+    unsigned t1 = (unsigned) get_us_clock();
+    uint32_t *b = j->buf;
+    for (int r = 0; r < 8; r++)
+        for (int i = 0; i < j->words; i++) b[i] = b[i] * 3 + x;
+    unsigned t2 = (unsigned) get_us_clock();
+    j->sink = x + b[j->words / 2];
+    j->us_alu = t1 - t0;
+    j->us_mem = t2 - t1;
+    asm volatile("dmb" ::: "memory");
+    j->done = 1;
+}
+
+/* the job on CPU1 at priority prio; 0 when it didn't finish in 10 s (then it's left alone) */
+static int cpu_job_on1(struct cpu_job *j, int prio, int with0, struct cpu_job *j0)
+{
+    j->done = 0;
+    uint32_t r = task_create_ex("fos_bench", prio, 0x2000, (void *) cpu_job_run, j, 1);
+    if (!r) return 0;
+    if (with0) cpu_job_run(j0);
+    for (int i = 0; i < 1000 && !j->done; i++) msleep(10);
+    return j->done;
+}
+
+static void cpu_bench(void)
+{
+    static struct cpu_job a, b;
+    const int words = 512 * 1024;       /* 2 MB each: beyond the 512 KB L2 */
+    a.buf = tmp_malloc(words * 4);
+    b.buf = tmp_malloc(words * 4);
+    if (!a.buf || !b.buf) { dbg("cpu bench: no memory"); return; }
+    memset(a.buf, 1, words * 4); memset(b.buf, 1, words * 4);
+    a.words = b.words = words;
+    dbg("cpu bench: this task on cpu %d", cpu_now());
+
+    cpu_job_run(&a);
+    dbg("cpu bench: cpu %d alone: alu %u us, mem %u us", a.cpu, a.us_alu, a.us_mem);
+
+    int ok = cpu_job_on1(&b, HELP_PRIO, 0, 0);
+    if (ok) dbg("cpu bench: cpu %d alone (prio 0x%x): alu %u us, mem %u us", b.cpu, HELP_PRIO, b.us_alu, b.us_mem);
+    else { dbg("cpu bench: the CPU1 task didn't finish in 10 s"); return; }
+
+    ok = cpu_job_on1(&b, 0x1e, 0, 0);
+    if (ok) dbg("cpu bench: cpu %d alone (prio 0x1e): alu %u us, mem %u us", b.cpu, b.us_alu, b.us_mem);
+    else { dbg("cpu bench: the CPU1 task (prio 0x1e) didn't finish in 10 s"); return; }
+
+    ok = cpu_job_on1(&b, HELP_PRIO, 1, &a);
+    if (ok) dbg("cpu bench: both at once: cpu %d alu %u mem %u us, cpu %d alu %u mem %u us",
+                a.cpu, a.us_alu, a.us_mem, b.cpu, b.us_alu, b.us_mem);
+    else { dbg("cpu bench: both at once: the CPU1 task didn't finish in 10 s"); return; }
+
+    free(a.buf); free(b.buf);
+}
+#endif
 static int hunt_tv = -1, hunt_changed = 0, hunt_done = 0;
 
 static void meter_snap()
@@ -1935,6 +2029,17 @@ static void filmroll_task()
             meter_hunt = 1;
         }
         dbg("meter hunt: %s", meter_hunt ? "on" : "off (no ML/METER.TXT)");
+    }
+#endif
+#ifdef CONFIG_6D2
+    {
+        /* ML/CPU1.TXT on the card: how much of the second core is ours (cpu_bench) */
+        void *hf = fos_port_open("ML/CPU1.TXT", 0);
+        if (hf)
+        {
+            fos_port_close(hf);
+            cpu_bench();
+        }
     }
 #endif
     dbg("read: %s", card_buffer() ? "card buffer ready" : "no card buffer: the darkroom can't read the card");
