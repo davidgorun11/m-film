@@ -93,7 +93,7 @@ static void put16(struct jw *w, int v) { put8(w, v >> 8); put8(w, v); }
 
 /* the bytes straight into the buffer, room for a call's few made first: a
  * call to put8 for each byte was a good part of the JPEG's time */
-static inline void put_bits(struct jw *w, uint32_t code, int len)
+static void put_bits(struct jw *w, uint32_t code, int len)
 {
     uint32_t bits = w->bits << len | (code & ((1u << len) - 1));
     int nbits = w->nbits + len;
@@ -164,7 +164,7 @@ static void fdct(int32_t *d)
     }
 }
 
-static inline int bit_size(int v)
+static int bit_size(int v)
 {
     if (v < 0) v = -v;
     return v ? 32 - __builtin_clz((unsigned) v) : 0;
