@@ -79,7 +79,9 @@ Report them in this fork's [Issues](../../issues), not to the original M-Film. A
   [HNGSeries/mfilm-canon-film-simulation](https://github.com/HNGSeries/mfilm-canon-film-simulation).
 - It is built on [Magic Lantern](https://www.magiclantern.fm/) and its
   [magiclantern_simplified](https://github.com/reticulatedpines/magiclantern_simplified) port for newer cameras.
-- The film colours come from [Film-Luts](https://github.com/YahiaAngelo/Film-Luts); the fonts and other parts are listed
-  in [THIRD_PARTY.md](THIRD_PARTY.md).
+- The colours of 59 films are adapted from film emulation tables by [Pat David](https://patdavid.net) and are
+  [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), not GPL-2.0 (taken through G'MIC and
+  [Film-Luts](https://github.com/YahiaAngelo/Film-Luts)); the 4 cinema print films use Juan Melara's tables. Those, the
+  fonts and other parts: [THIRD_PARTY.md](THIRD_PARTY.md).
 - License: GPL-2.0 ([LICENSE](LICENSE)).
 - Not affiliated with Canon, Kodak, Fujifilm or any film maker.

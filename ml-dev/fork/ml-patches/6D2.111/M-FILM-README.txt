@@ -63,4 +63,6 @@ Buttons, the same on every screen
 Free software (GPL-2.0, LICENSE.txt). The source of this build is the 6d2 branch at
 https://github.com/davidgorun11/mfilm-canon-6D-Mark-II
 The original M-Film is at https://github.com/HNGSeries/mfilm-canon-film-simulation
-Other parts and their licences, among them the Film-Luts colours: THIRD_PARTY.txt.
+Other parts and their licences: THIRD_PARTY.txt. The colour tables of 59 films (in ML/DARKROOM) are adapted
+from Pat David's film emulation tables and are CC BY-SA 4.0, not GPL-2.0; the 4 cinema print films use
+Juan Melara's tables, whose licence isn't stated.
