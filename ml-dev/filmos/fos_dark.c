@@ -620,14 +620,10 @@ static void next_job()
                 char name[9];
                 snprintf(jpeg, sizeof(jpeg), "%s/%s.JPG", dcim_dir, fos_copy(name, sizeof(name), base ? base + 1 : f->cr2, 8));
             }
+            /* developed before (and, by this version, written to DCIM too) */
+            if (file_exists(path) && (!jpeg[0] || f->missing || file_exists(jpeg))) continue;
             char twin[160];
             twin_path(twin, sizeof(twin), f->cr2);
-            /* developed before (and, by this version, written to DCIM too) */
-            if (file_exists(path) && (!jpeg[0] || f->missing || file_exists(jpeg)))
-            {
-                if (jpeg[0] && twin[0] && !f->missing && !file_exists(twin) && file_exists(jpeg)) twin_copy(jpeg, twin);
-                continue;
-            }
             snprintf(cur_jpeg, sizeof(cur_jpeg), "%s", jpeg);
             snprintf(cur_copy, sizeof(cur_copy), "%s", twin);
             if (f->missing && cur_new) continue;       /* "develop new": a frame with no RAW (shot as JPEG) is not an error */
@@ -691,14 +687,37 @@ static void next_job()
     fos_port_action(FA_BUSY, 0, 0);
 }
 
-/* IMG_0102.JPG beside IMG_0102.CR2, in Canon's folder: the camera and its phone app list it */
+/* The developed JPEG in Canon's folder, where the camera's playback and its phone app list
+ * it: FLM_0001.JPG, under a number of its own. Under the RAW's number (IMG_0102.JPG beside
+ * IMG_0102.CR2) the camera took the two for one RAW+JPEG shot and showed the RAW
+ * (2026-11-14). The lowest number no file in the folder has: Canon numbers on from its own
+ * counter or the folder's highest, never back down to these. */
+static int twin_seen(void *ctx, const char *name, int is_dir)
+{
+    if (is_dir || strlen(name) != 12 || name[8] != '.') return 1;
+    int n = 0;
+    for (int i = 4; i < 8; i++)
+    {
+        if (name[i] < '0' || name[i] > '9') return 1;
+        n = n * 10 + name[i] - '0';
+    }
+    ((uint8_t *) ctx)[n >> 3] |= (uint8_t) (1 << (n & 7));
+    return 1;
+}
+
 static void twin_path(char *out, int size, const char *cr2)
 {
-    int n = (int) strlen(cr2);
+    static uint8_t used[10000 / 8 + 1];
+    char dir[96];
+    const char *slash = strrchr(cr2, '/');
     out[0] = 0;
-    if (n < 5 || n >= size || strcmp(cr2 + n - 4, ".CR2")) return;
-    memcpy(out, cr2, n - 3);
-    strcpy(out + n - 3, "JPG");
+    if (!slash || slash - cr2 >= (int) sizeof(dir)) return;
+    memcpy(dir, cr2, slash - cr2);
+    dir[slash - cr2] = 0;
+    memset(used, 0, sizeof(used));
+    if (fos_port_list(dir, twin_seen, used) < 0) return;
+    for (int n = 1; n <= 9999; n++)
+        if (!(used[n >> 3] & (1 << (n & 7)))) { snprintf(out, size, "%s/FLM_%04d.JPG", dir, n); return; }
 }
 
 static void twin_copy(const char *from, const char *to)
