@@ -1645,7 +1645,8 @@ int fos_port_helper(void (*fn)(void *), void *arg)
     return r != 0;
 }
 
-/* A loop of arithmetic and one through memory, timed on each core alone and on both at once */
+/* A loop of arithmetic and one through memory, timed on each core alone and on both at once
+ * (dbg() has no %u: the times go as %d) */
 struct cpu_job
 {
     volatile int done;
@@ -1698,19 +1699,19 @@ static void cpu_bench(void)
     dbg("cpu bench: this task on cpu %d", cpu_now());
 
     cpu_job_run(&a);
-    dbg("cpu bench: cpu %d alone: alu %u us, mem %u us", a.cpu, a.us_alu, a.us_mem);
+    dbg("cpu bench: cpu %d alone: alu %d us, mem %d us", a.cpu, (int) a.us_alu, (int) a.us_mem);
 
     int ok = cpu_job_on1(&b, HELP_PRIO, 0, 0);
-    if (ok) dbg("cpu bench: cpu %d alone (prio 0x%x): alu %u us, mem %u us", b.cpu, HELP_PRIO, b.us_alu, b.us_mem);
+    if (ok) dbg("cpu bench: cpu %d alone (prio 0x%x): alu %d us, mem %d us", b.cpu, HELP_PRIO, (int) b.us_alu, (int) b.us_mem);
     else { dbg("cpu bench: the CPU1 task didn't finish in 10 s"); return; }
 
     ok = cpu_job_on1(&b, 0x1e, 0, 0);
-    if (ok) dbg("cpu bench: cpu %d alone (prio 0x1e): alu %u us, mem %u us", b.cpu, b.us_alu, b.us_mem);
+    if (ok) dbg("cpu bench: cpu %d alone (prio 0x1e): alu %d us, mem %d us", b.cpu, (int) b.us_alu, (int) b.us_mem);
     else { dbg("cpu bench: the CPU1 task (prio 0x1e) didn't finish in 10 s"); return; }
 
     ok = cpu_job_on1(&b, HELP_PRIO, 1, &a);
-    if (ok) dbg("cpu bench: both at once: cpu %d alu %u mem %u us, cpu %d alu %u mem %u us",
-                a.cpu, a.us_alu, a.us_mem, b.cpu, b.us_alu, b.us_mem);
+    if (ok) dbg("cpu bench: both at once: cpu %d alu %d mem %d us, cpu %d alu %d mem %d us",
+                a.cpu, (int) a.us_alu, (int) a.us_mem, b.cpu, (int) b.us_alu, (int) b.us_mem);
     else { dbg("cpu bench: both at once: the CPU1 task didn't finish in 10 s"); return; }
 
     free(a.buf); free(b.buf);
