@@ -185,6 +185,9 @@ const char *fos_port_model();               /* "Canon EOS M": the camera it runs
  * their brightness, FOS_FIXED_BASE.. the fixed overlay colours (fos_dev.h);
  * fos_port_palette() goes back to the film OS's own */
 void fos_port_photo(const uint8_t (*pal)[3], int n, int k);
+/* k | this: the palette goes up with the next frame presented, together with its pixels,
+ * rather than at once (a print changed in one refresh, not shown in the old one's colours) */
+#define FOS_PHOTO_WITH_FRAME 0x10000
 void fos_port_log(const char *msg);         /* the debug log, if it is on */
 /* developing works in slices until a time budget is spent; the simulator's
  * clock stands still meanwhile, so it caps the slices instead (0: no cap) */

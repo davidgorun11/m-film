@@ -554,6 +554,7 @@ static uint32_t palette_probe __attribute__((unused)) = 0;   /* unused with FEAT
 
 /* a photograph on the screen: its colours in 1..photo_n, at photo_k/256 */
 static int photo_mode = 0, photo_n = 0, photo_k = 256;
+static int photo_pending;                /* FOS_PHOTO_WITH_FRAME: palette_ours() at the next fos_port_present */
 static uint8_t (*photo_pal)[3];                 /* allocated when a print is first shown */
 
 #ifdef FEATURE_VRAM_RGBA
@@ -939,6 +940,13 @@ void fos_port_present(const uint8_t *rows, int pitch, int y0, int y1)
     y1 = COERCE(y1, y0, FOS_H);
     for (int y = y0; y < y1; y++)
         memcpy(vram + y * BMPPITCH, rows + (y - y0) * pitch, FOS_W);
+    if (photo_pending)
+    {
+        /* a new print's colours with its pixels, in the same refresh */
+        photo_pending = 0;
+        palette_ours();
+        ui_last_palette = get_ms_clock();
+    }
 #ifdef FEATURE_VRAM_RGBA
     ml_refresh_display_needed = 1;
 #endif
@@ -967,12 +975,15 @@ void fos_port_palette()
 
 void fos_port_photo(const uint8_t (*pal)[3], int n, int k)
 {
+    int with_frame = (k & FOS_PHOTO_WITH_FRAME) != 0;
+    k &= 0x1FF;
     photo_n = COERCE(n, 0, FOS_PRINT_COLOURS);
     if (!photo_pal) photo_pal = malloc(FOS_PRINT_COLOURS * 3);
     if (!photo_pal) { photo_mode = 0; return; }
     memcpy(photo_pal, pal, photo_n * 3);
     photo_k = COERCE(k, 0, 256);
     photo_mode = 1;
+    if (with_frame) { photo_pending = 1; return; }
     palette_ours();
     ui_last_palette = get_ms_clock();
 }
