@@ -2985,6 +2985,8 @@ struct bwork
     struct fos_dev *volatile d;         /* the frame it works for */
     volatile int seq, done;
     int job, y0, n, row0;               /* job 1: finish rows y0 .. y0 + n - 1; 2: dither them; row0: the band's first */
+    int m0, m1;                         /* job 3: the JPEG's 16 x 16 blocks m0 .. m1 - 1 of the band (n rows) into coef */
+    int16_t *coef;                      /* a band's JPEG coefficients, FOS_JPEG_MCU a block */
     unsigned bus[9];
     struct bscratch sc;
 };
@@ -3007,7 +3009,8 @@ static void bwork_run(void *arg)
         last = w->seq;
         struct fos_dev *d = w->d;
         const int bw = d->bw;
-        for (int i = 0; i < w->n; i++)
+        if (w->job == 3) fos_jpeg_prep(d->bjpeg, d->brgb, bw * 3, w->n, w->m0, w->m1, w->coef);
+        else for (int i = 0; i < w->n; i++)
         {
             int y = w->y0 + i, k = y - w->row0;
             if (w->job == 1) big_finish(d, y, d->brgb + k * bw * 3, &w->sc);
@@ -3053,6 +3056,8 @@ static void bwork_start(struct fos_dev *d)
     w->sc.cam = (uint16_t *) (w->sc.t32 + bw * 3);
     w->sc.lin = w->sc.cam + bw * 3;
     w->sc.bus = w->bus;
+    /* the JPEG's coefficients for a band, when there is a JPEG: its blocks made on both cores */
+    w->coef = d->bjpeg ? fos_port_alloc(fos_jpeg_mcus(d->bjpeg) * FOS_JPEG_MCU * 2) : 0;
     w->d = d;
     d->bwork = w;
 }
@@ -3065,6 +3070,8 @@ static void bwork_stop(struct fos_dev *d)
     bwork_wait(w);
     fos_port_free(w->sc.t32);
     w->sc.t32 = 0;
+    fos_port_free(w->coef);
+    w->coef = 0;
     d->bwork = 0;
 }
 #endif
@@ -3096,9 +3103,23 @@ static void big_rows(struct fos_dev *d)
         for (int i = 0; i < h; i++)
             big_finish(d, y0 + i, d->brgb + i * bw * 3, &sc);
         bwork_wait(w);
-        if (d->bzoom) bwork_post(w, 2, y0, n, y0);
         u0 = FOS_US();
-        if (d->bjpeg) fos_jpeg_rows(d->bjpeg, d->brgb, bw * 3, n);
+        if (d->bjpeg && w->coef && !d->bzoom)
+        {
+            /* the JPEG: the band's blocks made on both cores (colour, DCT, quantizing:
+             * two thirds of its work), then written here in order */
+            const int m = fos_jpeg_mcus(d->bjpeg), half = m / 2;
+            w->m0 = half; w->m1 = m;
+            bwork_post(w, 3, y0, n, y0);
+            fos_jpeg_prep(d->bjpeg, d->brgb, bw * 3, n, 0, half, w->coef);
+            bwork_wait(w);
+            fos_jpeg_emit(d->bjpeg, w->coef, n);
+        }
+        else
+        {
+            if (d->bzoom) bwork_post(w, 2, y0, n, y0);
+            if (d->bjpeg) fos_jpeg_rows(d->bjpeg, d->brgb, bw * 3, n);
+        }
         u1 = FOS_US(); d->bus[6] += u1 - u0; u0 = u1;
         if (d->bzoom)
         {

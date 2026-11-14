@@ -91,17 +91,28 @@ static void put8(struct jw *w, int b)
 
 static void put16(struct jw *w, int v) { put8(w, v >> 8); put8(w, v); }
 
-static void put_bits(struct jw *w, uint32_t code, int len)
+/* the bytes straight into the buffer, room for a call's few made first: a
+ * call to put8 for each byte was a good part of the JPEG's time */
+static inline void put_bits(struct jw *w, uint32_t code, int len)
 {
-    w->bits = w->bits << len | (code & ((1u << len) - 1));
-    w->nbits += len;
-    while (w->nbits >= 8)
+    uint32_t bits = w->bits << len | (code & ((1u << len) - 1));
+    int nbits = w->nbits + len;
+    if (nbits >= 8)
     {
-        int b = (int) (w->bits >> (w->nbits - 8)) & 0xFF;
-        put8(w, b);
-        if (b == 0xFF) put8(w, 0);          /* stuffed */
-        w->nbits -= 8;
+        if (w->n > (int) sizeof(w->buf) - 8) flush(w);     /* at most 23 bits: two bytes, stuffed four */
+        uint8_t *o = w->buf + w->n;
+        do
+        {
+            nbits -= 8;
+            uint8_t b = (uint8_t) (bits >> nbits);
+            *o++ = b;
+            if (b == 0xFF) *o++ = 0;        /* stuffed */
+        }
+        while (nbits >= 8);
+        w->n = (int) (o - w->buf);
     }
+    w->bits = bits;
+    w->nbits = nbits;
 }
 
 static void huff_codes(const uint8_t *bits, const uint8_t *vals, uint16_t *code, uint8_t *len)
@@ -153,24 +164,27 @@ static void fdct(int32_t *d)
     }
 }
 
-static int bit_size(int v)
+static inline int bit_size(int v)
 {
-    int n = 0;
     if (v < 0) v = -v;
-    while (v) { n++; v >>= 1; }
-    return n;
+    return v ? 32 - __builtin_clz((unsigned) v) : 0;
 }
 
-/* a block of samples (level-shifted) to the file; t: 0 luma, 1 chroma */
-static void block(struct jw *w, int32_t *d, int t, int *dc_prev)
+/* a block of samples (level-shifted) to its quantized coefficients, in
+ * zigzag order; t: 0 luma, 1 chroma */
+static void quant_block(const struct jw *w, int32_t *d, int t, int16_t *q)
 {
     fdct(d);
-    int q[64];
     for (int i = 0; i < 64; i++)
     {
         int32_t v = d[zigzag[i]], r = w->recip[t][i];
-        q[i] = v >= 0 ? (int) ((v * r + 32768) >> 16) : -(int) ((-v * r + 32768) >> 16);
+        q[i] = (int16_t) (v >= 0 ? (int) ((v * r + 32768) >> 16) : -(int) ((-v * r + 32768) >> 16));
     }
+}
+
+/* a block's coefficients to the file */
+static void block(struct jw *w, const int16_t *q, int t, int *dc_prev)
+{
     int diff = q[0] - *dc_prev, n = bit_size(diff);
     *dc_prev = q[0];
     put_bits(w, w->dc_code[t][n], w->dc_len[t][n]);
@@ -377,38 +391,77 @@ struct fos_jpeg *fos_jpeg_begin(const char *path, int width, int height, int qua
 /* the picture's next rows (rgb: the first of them), 16 x 16 at a time: four
  * luma blocks, then Cb and Cr from the means of 2 x 2 pixels; the edges
  * repeat the last pixel. Every call but the last brings a multiple of 16. */
-void fos_jpeg_rows(struct fos_jpeg *j, const uint8_t *rgb, int stride, int rows)
+/* The 16 x 16 block at mx, my of a band (rows of it, from its top): its
+ * four luma blocks, then Cb and Cr at half size, as coefficients
+ * (FOS_JPEG_MCU of them). Only reads j: it can run on another core. */
+static void prep_mcu(const struct fos_jpeg *j, const uint8_t *rgb, int stride, int rows, int mx, int my, int16_t *c)
 {
-    struct jw *w = &j->w;
+    const struct jw *w = &j->w;
     const int width = j->width;
     int32_t blk[64], cb[64], cr[64];
-    for (int my = 0; my < rows; my += 16)
-        for (int mx = 0; mx < width; mx += 16)
+    memset(cb, 0, sizeof(cb));
+    memset(cr, 0, sizeof(cr));
+    for (int b = 0; b < 4; b++)
+    {
+        int bx = mx + (b & 1) * 8, by = my + (b >> 1) * 8;
+        for (int y = 0; y < 8; y++)
         {
-            memset(cb, 0, sizeof(cb));
-            memset(cr, 0, sizeof(cr));
-            for (int b = 0; b < 4; b++)
+            const uint8_t *row = rgb + (by + y < rows ? by + y : rows - 1) * stride;
+            for (int x = 0; x < 8; x++)
             {
-                int bx = mx + (b & 1) * 8, by = my + (b >> 1) * 8;
-                for (int y = 0; y < 8; y++)
-                {
-                    const uint8_t *row = rgb + (by + y < rows ? by + y : rows - 1) * stride;
-                    for (int x = 0; x < 8; x++)
-                    {
-                        const uint8_t *px = row + 3 * (bx + x < width ? bx + x : width - 1);
-                        int r = px[0], g = px[1], bl = px[2];
-                        blk[y * 8 + x] = ((19595 * r + 38470 * g + 7471 * bl + 32768) >> 16) - 128;
-                        int k = ((b >> 1) * 4 + (y >> 1)) * 8 + (b & 1) * 4 + (x >> 1);
-                        cb[k] += -11059 * r - 21709 * g + 32768 * bl;
-                        cr[k] += 32768 * r - 27439 * g - 5329 * bl;
-                    }
-                }
-                block(w, blk, 0, &j->dc[0]);
+                const uint8_t *px = row + 3 * (bx + x < width ? bx + x : width - 1);
+                int r = px[0], g = px[1], bl = px[2];
+                blk[y * 8 + x] = ((19595 * r + 38470 * g + 7471 * bl + 32768) >> 16) - 128;
+                int k = ((b >> 1) * 4 + (y >> 1)) * 8 + (b & 1) * 4 + (x >> 1);
+                cb[k] += -11059 * r - 21709 * g + 32768 * bl;
+                cr[k] += 32768 * r - 27439 * g - 5329 * bl;
             }
-            for (int i = 0; i < 64; i++) { cb[i] = (cb[i] + 131072) >> 18; cr[i] = (cr[i] + 131072) >> 18; }
-            block(w, cb, 1, &j->dc[1]);
-            block(w, cr, 1, &j->dc[2]);
         }
+        quant_block(w, blk, 0, c + 64 * b);
+    }
+    for (int i = 0; i < 64; i++) { cb[i] = (cb[i] + 131072) >> 18; cr[i] = (cr[i] + 131072) >> 18; }
+    quant_block(w, cb, 1, c + 256);
+    quant_block(w, cr, 1, c + 320);
+}
+
+int fos_jpeg_mcus(const struct fos_jpeg *j)
+{
+    return (j->width + 15) / 16;
+}
+
+void fos_jpeg_prep(const struct fos_jpeg *j, const uint8_t *rgb, int stride, int rows, int m0, int m1, int16_t *coef)
+{
+    for (int m = m0; m < m1; m++)
+        prep_mcu(j, rgb, stride, rows, m * 16, 0, coef + FOS_JPEG_MCU * m);
+}
+
+static void emit_mcu(struct fos_jpeg *j, const int16_t *c)
+{
+    for (int b = 0; b < 4; b++) block(&j->w, c + 64 * b, 0, &j->dc[0]);
+    block(&j->w, c + 256, 1, &j->dc[1]);
+    block(&j->w, c + 320, 1, &j->dc[2]);
+}
+
+void fos_jpeg_emit(struct fos_jpeg *j, const int16_t *coef, int rows)
+{
+    for (int m = 0, n = fos_jpeg_mcus(j); m < n; m++) emit_mcu(j, coef + FOS_JPEG_MCU * m);
+    j->y += rows;
+}
+
+void fos_jpeg_rows(struct fos_jpeg *j, const uint8_t *rgb, int stride, int rows)
+{
+    int16_t c[FOS_JPEG_MCU];
+    for (int my = 0; my < rows; my += 16)
+    {
+        /* a band of 16 at a time: its last rows stand in below the picture's bottom */
+        const uint8_t *band = rgb + my * stride;
+        int brows = rows - my < 16 ? rows - my : 16;
+        for (int mx = 0; mx < j->width; mx += 16)
+        {
+            prep_mcu(j, band, stride, brows, mx, 0, c);
+            emit_mcu(j, c);
+        }
+    }
     j->y += rows;
 }
 
