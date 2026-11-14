@@ -35,6 +35,22 @@ void *fos_port_alloc(int size)
     return p;
 }
 int fos_port_dev_cap() { return 0; }
+
+/* the second core, as a thread (FOS_SPLIT=permille where it starts, 0 off) */
+#include <pthread.h>
+extern int fos_dev_split;
+struct job { void (*fn)(void *); void *arg; };
+static void *job_run(void *a) { struct job j = *(struct job *) a; free(a); j.fn(j.arg); return 0; }
+int fos_port_helper(void (*fn)(void *), void *arg)
+{
+    struct job *j = malloc(sizeof(*j));
+    pthread_t t;
+    if (!j) return 0;
+    j->fn = fn; j->arg = arg;
+    if (pthread_create(&t, 0, job_run, j)) { free(j); return 0; }
+    pthread_detach(t);
+    return 1;
+}
 void fos_port_log(const char *msg) { fprintf(stderr, "%s\n", msg); }
 void fos_port_free(void *p) { if (p) mem_used -= (long) malloc_usable_size(p); free(p); }
 
@@ -135,6 +151,7 @@ int main(int argc, char **argv)
     int t0 = fos_port_ms(), steps = 0, p = 0;
     struct fos_dev *d = fos_dev_start(argv[a], argv[a + 1], film, 1, "2026-10-22 17:45", "2.8");
     /* FOS_JPEG: the full-colour frame as a JPEG too, as the camera writes it to DCIM */
+    if (getenv("FOS_SPLIT")) fos_dev_split = atoi(getenv("FOS_SPLIT"));
     if (getenv("FOS_JPEG")) fos_dev_jpeg(d, getenv("FOS_JPEG"));
     /* FOS_SIZE=1|2: the bigger print (M, L) as the JPEG, FOS_ZOOM: its zoom file; FOS_STAMP=1: the date on it */
     if (getenv("FOS_SIZE")) fos_dev_big(d, atoi(getenv("FOS_SIZE")), getenv("FOS_ZOOM"));

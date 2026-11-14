@@ -331,6 +331,7 @@ FOS_INLINE void lut_apply(const uint8_t (*lut)[3], int pr, int pg, int pb, uint8
 #define FAST_BITS   9
 #define DIFF_BITS   11
 #define UNPACK      2688                /* samples decoded at a time: an EOS M slice's row */
+#define HELP_CHECK  4096                /* samples checked where the helper's part begins (FOS_HELPER) */
 
 enum { ST_OPEN, ST_DECODE, ST_KEY, ST_EXPOSE, ST_GLOW, ST_FINISH, ST_JPEG, ST_QUANT, ST_DITHER, ST_BIG, ST_WRITE, ST_DONE, ST_FAIL,
        ST_COUNT };
@@ -383,6 +384,17 @@ struct fos_dev
     uint16_t samples[4 + UNPACK];
     int sl, sx, sy, sw, sx0;            /* where the next sample goes: slice, column in it, row */
     long done, total;
+#ifdef FOS_HELPER
+    struct helper *hp;                  /* the second core's part of the codes, see help_source() */
+    long hk0;                           /* the earliest sample its first difference can be; -1: not known yet */
+    const int16_t *src;                 /* differences to take instead of the bit reader's: the checked ones */
+    long src_n;
+    uint16_t *hv;                       /* then the helper's part, from sample hk0 + its check: differences, made samples in place */
+    long hv_n, hv_done, hsplit;         /* its samples, done in this phase, where the other core's rows start */
+    int hphase;                         /* 0 predicting, 1 summing above hsplit, 2 waiting for the rest */
+    struct hjob *hjob;
+    int16_t hdv[HELP_CHECK + 3];        /* this decoder's own, where the helper's begin */
+#endif
 
     /* the print being built */
     int ow, oh, ox0;                    /* picture size and its left edge on the print */
@@ -1423,16 +1435,394 @@ static __attribute__((noinline)) void scatter(struct fos_dev *d, const uint16_t 
     d->black_sum = black_sum; d->black_n = black_n;
 }
 
+#ifdef FOS_HELPER
+/* ---- the second core (DIGIC 7's CPU1)
+ *
+ * The RAW is one stream of Huffman codes with nothing to start from in its
+ * middle, but a decoder started at any bit falls into step with the real
+ * codes within a few hundred bits (6D2 files: 25 000 random starts, all in
+ * step by 1600 bits; Resources/6D2 M-Film/hsync). So a helper on the other
+ * core decodes the stream's last part into differences, counting them to
+ * the end: as the samples' total is known, that gives where they begin.
+ * This decoder does the first part as ever, checks its own next
+ * HELP_CHECK differences against the helper's first, and then takes the
+ * helper's in place of the bit reader's: prediction and summing only.
+ * Any doubt and it simply goes on decoding: the print is the same either way. */
+
+int fos_port_helper(void (*fn)(void *), void *arg);    /* fn(arg) on the other core; 0: none */
+int fos_dev_split = 380;                /* where the helper starts, 1/1000 of the data (best on a PC, 2026-11-13); 0: no helper */
+
+#define HELP_SKIP   8192                /* bits the helper decodes before it trusts where it is */
+#define HELP_MARGIN (16 * 1024)         /* bytes before the helper's start this decoder waits at */
+
+struct helper
+{
+    volatile int state, stop;           /* state 0 running, 1 done, -1 failed */
+    void *f;
+    uint8_t *buf;                       /* CHUNK + 16 */
+    int from, end;                      /* the file's bytes: where it starts, the data's end */
+    const struct huff *huff;
+    int16_t *diffs;
+    long cap, m;                        /* room; differences from where it trusts itself to the end */
+    int ms;
+    /* its reader: a chunk of the file at a time, unstuffed in place */
+    const uint8_t *p, *e;
+    int pos, ended;
+    long long got;                      /* data bytes unstuffed so far */
+};
+
+/* the next chunk after the bytes not yet used (at h->p), unstuffed; zeros after the data's end */
+static void help_load(struct helper *h)
+{
+    int keep = (int) (h->e - h->p);
+    memmove(h->buf, h->p, keep);
+    uint8_t *o = h->buf + keep, *w = o;
+    int n = h->end - h->pos;
+    if (n > CHUNK) n = CHUNK;
+    if (!h->ended && n > 0 && (n = fos_port_read(h->f, o, n)) > 0)
+    {
+        h->pos += n;
+        /* a 0xFF last: its next byte says what it is, so it waits for the next chunk */
+        if (o[n - 1] == 0xFF && h->pos < h->end && fos_port_seek(h->f, --h->pos) >= 0) n--;
+        const uint8_t *i = o, *ie = o + n;
+        while (i < ie)
+        {
+            const uint8_t *ff = next_ff(i, ie);
+            if (w != i) memmove(w, i, ff - i);
+            w += ff - i;
+            i = ff;
+            if (i == ie) break;
+            if (i + 1 < ie && !i[1]) { *w++ = 0xFF; i += 2; }
+            else { h->ended = 1; break; }       /* a marker: the data's end */
+        }
+    }
+    else h->ended = 1;
+    h->got += w - o;
+    memset(w, 0, 16);
+    h->p = h->buf; h->e = w;
+}
+
+/* one difference from table t, the slow way when the one lookup doesn't
+ * cover it; bitbuf holds at least DIFF_BITS + 1. -32769: no such code */
+#define HDIFF(diff) \
+    do \
+    { \
+        int e_ = fd[(bitbuf >> (vbits - DIFF_BITS)) & ((1 << DIFF_BITS) - 1)]; \
+        if (__builtin_expect(e_ & 15, 1)) { vbits -= e_ & 15; diff = e_ >> 4; } \
+        else \
+        { \
+            int c_ = t->fast[(bitbuf >> (vbits - FAST_BITS)) & ((1 << FAST_BITS) - 1)]; \
+            if (!c_) c_ = slow_symbol(t, bitbuf, vbits); \
+            if (!c_) { diff = -32769; break; } \
+            vbits -= c_ >> 8; \
+            int sz_ = c_ & 0xFF; \
+            diff = 0; \
+            if (sz_ == 16) diff = -32768; \
+            else if (sz_) \
+            { \
+                while (vbits <= 24) { bitbuf = bitbuf << 8 | *p++; vbits += 8; } \
+                vbits -= sz_; \
+                diff = (int) ((bitbuf >> vbits) & ((1u << sz_) - 1)); \
+                if (!(diff >> (sz_ - 1))) diff -= (1 << sz_) - 1; \
+            } \
+        } \
+    } while (0)
+
+static void help_run(void *arg)
+{
+    struct helper *h = arg;
+    const struct huff *t = h->huff;
+    const int16_t *fd = t->fastd;
+    int t0 = fos_port_ms(), vbits = 0, ok = 1, diff;
+    uint32_t bitbuf = 0;
+    const uint8_t *p = h->p, *e = h->e;
+    int16_t *out = h->diffs, *oend = h->diffs + h->cap;
+    /* where the next code starts, in bits from the helper's start */
+#define AT() ((h->got - (e - p)) * 8 - vbits)
+    /* out of step for a while: codes counted for nothing, a bit skipped where there's no such code */
+    while (AT() < HELP_SKIP)
+    {
+        if (e - p < 8) { h->p = p; help_load(h); p = h->p; e = h->e; if (h->ended) { ok = 0; break; } }
+        while (vbits <= 24) { bitbuf = bitbuf << 8 | *p++; vbits += 8; }
+        HDIFF(diff);
+        if (diff == -32769) vbits--;
+    }
+    /* in step: two codes to a fill, as unpack() does */
+    long left = 0;
+    while (ok)
+    {
+        if (__builtin_expect(e - p < 8, 0))
+        {
+            if (!h->ended) { h->p = p; help_load(h); p = h->p; e = h->e; }
+            else if (AT() >= h->got * 8) break;
+            if (h->stop) { ok = 0; break; }
+        }
+        if (__builtin_expect(--left < 0, 0))
+        {
+            /* the end in sight, the room, a stop: looked at now and then */
+            if (h->stop || oend - out < 2) { ok = 0; break; }
+            left = (oend - out) / 2 < 4096 ? (oend - out) / 2 : 4096;
+            if (h->ended && AT() >= h->got * 8 - 64) left = 0;
+        }
+        if (vbits <= 16) { bitbuf = bitbuf << 16 | (uint32_t) p[0] << 8 | p[1]; p += 2; vbits += 16; }
+        if (vbits <= 24) { bitbuf = bitbuf << 8 | *p++; vbits += 8; }
+        HDIFF(diff);
+        if (diff == -32769) { if (!h->ended) ok = 0; break; }
+        *out++ = (int16_t) diff;
+        if (h->ended && AT() >= h->got * 8) break;
+        HDIFF(diff);
+        if (diff == -32769) { if (!h->ended) ok = 0; break; }
+        *out++ = (int16_t) diff;
+    }
+#undef AT
+    h->m = out - h->diffs;
+    h->ms = fos_port_ms() - t0;
+    __sync_synchronize();
+    h->state = ok && !h->stop ? 1 : -1;
+}
+
+/* the rows below a line of the print, summed on the other core */
+struct hjob
+{
+    struct fos_dev d;                   /* the frame's state, its own place in the raw */
+    const uint16_t *v;
+    long n;
+    volatile int done;
+};
+
+static void job_run(void *arg)
+{
+    struct hjob *j = arg;
+    scatter(&j->d, j->v, j->n);
+    __sync_synchronize();
+    j->done = 1;
+}
+
+static void job_wait(struct fos_dev *d)
+{
+    if (!d->hjob) return;
+    while (!d->hjob->done) __sync_synchronize();    /* ponytail: spins; only when the frame is dropped mid-way */
+    fos_port_free(d->hjob);
+    d->hjob = 0;
+}
+
+/* the helper stopped (if running) and gone */
+static void help_end(struct fos_dev *d)
+{
+    struct helper *h = d->hp;
+    if (!h) return;
+    job_wait(d);
+    h->stop = 1;
+    while (!h->state) __sync_synchronize();     /* ponytail: spins; it stops within a code */
+    if (h->f) fos_port_close(h->f);
+    fos_port_free(h->buf); fos_port_free(h->diffs); fos_port_free(h);
+    d->hp = 0;
+    d->src_n = 0;
+    d->hv = 0;
+}
+
+/* at the RAW's start: the helper off to the last part, if there's a second core */
+static void help_start(struct fos_dev *d)
+{
+    d->hk0 = -1;
+    if (fos_dev_split <= 0) return;
+    for (int c = 1; c < d->clrs; c++)
+        if (d->huff[c] != d->huff[0]) return;   /* it can't tell the components apart: one table only */
+    struct helper *h = fos_port_alloc(sizeof(*h));
+    if (!h) return;
+    memset(h, 0, sizeof(*h));
+    h->from = d->file_pos + (int) ((long long) (d->file_end - d->file_pos) * fos_dev_split / 1000);
+    h->end = d->file_end;
+    h->pos = h->from;
+    h->huff = d->huff[0];
+    long long most = (long long) (h->end - h->from) * 4;    /* codes are 2 bits at least */
+    h->cap = most < d->total ? (long) most : d->total;
+    h->diffs = fos_port_alloc((int) (h->cap * 2));
+    h->buf = fos_port_alloc(CHUNK + 16);
+    h->f = fos_port_open(d->cr2, 0);
+    d->hp = h;
+    if (h->buf) h->p = h->e = h->buf;
+    if (!h->diffs || !h->buf || !h->f || fos_port_seek(h->f, h->from) < 0 || !fos_port_helper(help_run, h))
+    {
+        h->state = -1;
+        help_end(d);
+    }
+}
+
+/* Where the next k samples' differences come from: the helper's (returned),
+ * or 0 for the bit reader's. k shrinks to where that changes; 0: wait. */
+static const int16_t *help_source(struct fos_dev *d, int *k)
+{
+    if (d->src_n)
+    {
+        if (*k > d->src_n) *k = (int) d->src_n;
+        const int16_t *s = d->src;
+        d->src += *k; d->src_n -= *k;
+        return s;
+    }
+    struct helper *h = d->hp;
+    if (!h || d->hk0 == -2 || d->hv) return 0;
+    if (d->hk0 == -1)
+    {
+        if (!h->state)
+        {
+            /* not done: decode on, short of its start */
+            if (d->file_pos - (int) (d->be - d->bp) >= h->from - HELP_MARGIN) *k = 0;
+            return 0;
+        }
+        __sync_synchronize();
+        d->hk0 = d->total - h->m;
+        if (h->state < 0 || h->m < HELP_CHECK + 4 || d->done > d->hk0)
+        {
+            char msg[96];
+            snprintf(msg, sizeof(msg), "dev: helper from byte %d not taken (state %d, %ld differences, %d ms)", h->from, h->state, h->m, h->ms);
+            fos_port_log(msg);
+            help_end(d);
+            d->hk0 = -2;
+            return 0;
+        }
+    }
+    if (d->done < d->hk0)
+    {
+        if (*k > d->hk0 - d->done) *k = (int) (d->hk0 - d->done);
+        return 0;
+    }
+    /* here: up to three codes of padding at the end may have counted as
+     * differences, so the helper's first is one of the next four samples.
+     * This decoder's own next ones say which, and that it was in step. */
+    const int n = HELP_CHECK + 3;
+    for (int i = 0, c = d->comp; i < n; i++, c = c + 1 == d->clrs ? 0 : c + 1)
+        d->hdv[i] = (int16_t) slow_diff(d, d->huff[c]);
+    int p = 0;
+    while (p < 4 && memcmp(d->hdv + p, h->diffs, HELP_CHECK * 2)) p++;
+    d->src = d->hdv; d->src_n = n;
+    if (p < 4)
+    {
+        /* after these, the helper's part: from sample hk0 + n, its difference n - p */
+        d->hv = (uint16_t *) (h->diffs + n - p);
+        d->hv_n = d->total - d->hk0 - n;
+        d->hv_done = 0;
+        d->hphase = 0;
+    }
+    char msg[128];
+    snprintf(msg, sizeof(msg), "dev: helper from byte %d, samples %ld on: %s (%d ms, %ld differences, +%d)",
+             h->from, d->hk0 + p, p < 4 ? "taken" : "NOT in step, decoded here", h->ms, h->m, p);
+    fos_port_log(msg);
+    d->hk0 = -2;
+    return help_source(d, k);
+}
+
+/* samples from differences: unpack()'s prediction, without the codes */
+static void predict(struct fos_dev *d, uint16_t *out, int count, const int16_t *dv)
+{
+    const int clrs = d->clrs, wide = d->wide;
+    int comp = d->comp, jcol = d->jcol;
+    for (int i = 0; i < count; i++)
+    {
+        if (jcol) out[i] = (uint16_t) (out[i - clrs] + dv[i]);
+        else out[i] = (uint16_t) (d->vpred[comp] += dv[i]);
+        if (++comp == clrs)
+        {
+            comp = 0;
+            if (++jcol == wide) jcol = 0;
+        }
+    }
+    d->comp = comp; d->jcol = jcol;
+}
+
+/* lines of the print: does raw row r start one of its own (both prints)? */
+static int line_starts(const struct fos_dev *d, int r)
+{
+    int a = d->rowoff[r - 1], b = d->rowoff[r];
+    if (a >= 0 && b >= 0 && a == b) return 0;
+    if (d->big)
+    {
+        unsigned x = d->brmap[r - 1], y = d->brmap[r];
+        if (x != 0xFFFF && x == y) return 0;
+    }
+    return 1;
+}
+
+/* The helper's part, once checked: its differences made samples in place
+ * (the prediction runs on from the last ones decoded here), then summed,
+ * the rows from a line of the print about half way down by the other
+ * core, the ones above it here. About n samples' worth at a time. */
+static void help_finish(struct fos_dev *d, long n)
+{
+    if (d->hphase == 0)
+    {
+        if (!d->hv_done) memcpy(d->hv - d->clrs, d->samples + 4 - d->clrs, d->clrs * 2);
+        long k = d->hv_n - d->hv_done;
+        if (k > 8 * n) k = 8 * n;
+        predict(d, d->hv + d->hv_done, (int) k, (const int16_t *) d->hv + d->hv_done);
+        d->hv_done += k;
+        if (d->hv_done < d->hv_n) return;
+        d->hphase = 1;
+        d->hv_done = 0;
+        d->hsplit = d->hv_n;
+        if (!d->slices[0])
+        {
+            int r = (d->sy + 1 + d->raw_h) / 2;
+            while (r < d->raw_h && !line_starts(d, r)) r++;
+            long at = (long) r * d->raw_w - (d->total - d->hv_n);   /* row r's first sample in hv */
+            struct hjob *j = r < d->raw_h && at > 0 ? fos_port_alloc(sizeof(*j)) : 0;
+            if (j)
+            {
+                memcpy(&j->d, d, sizeof(*d));
+                j->d.sx = 0; j->d.sy = r; j->d.sx0 = 0;
+                j->d.black_sum = 0; j->d.black_n = 0;
+                j->v = d->hv + at;
+                j->n = d->hv_n - at;
+                j->done = 0;
+                d->hjob = j;
+                if (fos_port_helper(job_run, j)) d->hsplit = at;
+                else { fos_port_free(j); d->hjob = 0; }
+            }
+        }
+    }
+    if (d->hphase == 1)
+    {
+        long k = d->hsplit - d->hv_done;
+        if (k > n) k = n;
+        scatter(d, d->hv + d->hv_done, (int) k);
+        d->hv_done += k;
+        d->done += k;
+        if (d->hv_done < d->hsplit) return;
+        d->hphase = 2;
+    }
+    if (d->hjob)
+    {
+        struct hjob *j = d->hjob;
+        if (!j->done) return;           /* the other core's rows */
+        __sync_synchronize();
+        d->sx = j->d.sx; d->sy = j->d.sy; d->sw = j->d.sw; d->sx0 = j->d.sx0; d->sl = j->d.sl;
+        d->black_sum += j->d.black_sum;
+        d->black_n += j->d.black_n;
+        job_wait(d);
+    }
+    d->done = d->total;
+}
+#endif
+
 /* decode about n samples straight into the print's sums */
 static void decode(struct fos_dev *d, long n)
 {
     uint16_t *s = d->samples + 4;
     while (n > 0 && d->done < d->total)
     {
+#ifdef FOS_HELPER
+        if (d->hv && !d->src_n) { help_finish(d, n); return; }
+#endif
         /* to the end of a raw row, so scatter has it whole */
         int k = d->sw - d->sx;
         if (k > UNPACK) k = UNPACK;
         if (k > d->total - d->done) k = (int) (d->total - d->done);
+#ifdef FOS_HELPER
+        const int16_t *from = help_source(d, &k);
+        if (!k) return;                 /* the helper isn't done yet */
+        if (from) predict(d, s, k, from);
+        else
+#endif
         unpack(d, s, k);
         scatter(d, s, k);
         /* the last of each component, for the next ones' prediction */
@@ -1835,6 +2225,9 @@ int fos_dev_made(const struct fos_dev *d, int *w, int *h)
 void fos_dev_free(struct fos_dev *d)
 {
     if (!d) return;
+#ifdef FOS_HELPER
+    help_end(d);
+#endif
     if (d->f) fos_port_close(d->f);
     fos_port_free(d->buf); fos_port_free(d->rowoff); fos_port_free(d->seg_of);
     fos_port_free(d->seg_x0); fos_port_free(d->seg_off); fos_port_free(d->seg_desc); fos_port_free(d->desc_off); fos_port_free(d->seg_piece);
@@ -2543,6 +2936,9 @@ static int dev_step(struct fos_dev *d, int budget_ms)
                 d->safe = d->buf;               /* the first read fills it */
                 d->ff = 0;
                 d->stage = ST_DECODE;
+#ifdef FOS_HELPER
+                help_start(d);
+#endif
                 break;
             case ST_DECODE:
                 /* the film's table first, a little at a time */
@@ -2550,6 +2946,9 @@ static int dev_step(struct fos_dev *d, int budget_ms)
                 decode(d, 1 << 14);
                 if (d->done >= d->total)
                 {
+#ifdef FOS_HELPER
+                    help_end(d);
+#endif
                     fos_port_close(d->f);
                     d->f = 0;
                     fos_port_free(d->buf); d->buf = 0;
