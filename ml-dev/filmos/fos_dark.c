@@ -447,9 +447,6 @@ void dark_draw()
 
 static int nqueue, qi;
 static char dcim_dir[128];              /* the roll's JPEG folder, or "" */
-static char cur_jpeg[160], cur_copy[160];   /* this frame's JPEG, and its twin beside the RAW (Canon's own folder) */
-static void twin_path(char *out, int size, const char *cr2);
-static void twin_copy(const char *from, const char *to);
 static int nframes, fi, roll_ready;
 static int cur_roll, cur_film, cur_frame;
 static struct fos_dev *dev;
@@ -622,10 +619,6 @@ static void next_job()
             }
             /* developed before (and, by this version, written to DCIM too) */
             if (file_exists(path) && (!jpeg[0] || f->missing || file_exists(jpeg))) continue;
-            char twin[160];
-            twin_path(twin, sizeof(twin), f->cr2);
-            snprintf(cur_jpeg, sizeof(cur_jpeg), "%s", jpeg);
-            snprintf(cur_copy, sizeof(cur_copy), "%s", twin);
             if (f->missing && cur_new) continue;       /* "develop new": a frame with no RAW (shot as JPEG) is not an error */
             if (f->missing)
             {
@@ -687,55 +680,6 @@ static void next_job()
     fos_port_action(FA_BUSY, 0, 0);
 }
 
-/* The developed JPEG in Canon's folder, where the camera's playback and its phone app list
- * it: FLM_0001.JPG, under a number of its own. Under the RAW's number (IMG_0102.JPG beside
- * IMG_0102.CR2) the camera took the two for one RAW+JPEG shot and showed the RAW
- * (2026-11-14). The lowest number no file in the folder has: Canon numbers on from its own
- * counter or the folder's highest, never back down to these. */
-static int twin_seen(void *ctx, const char *name, int is_dir)
-{
-    if (is_dir || strlen(name) != 12 || name[8] != '.') return 1;
-    int n = 0;
-    for (int i = 4; i < 8; i++)
-    {
-        if (name[i] < '0' || name[i] > '9') return 1;
-        n = n * 10 + name[i] - '0';
-    }
-    ((uint8_t *) ctx)[n >> 3] |= (uint8_t) (1 << (n & 7));
-    return 1;
-}
-
-static void twin_path(char *out, int size, const char *cr2)
-{
-    static uint8_t used[10000 / 8 + 1];
-    char dir[96];
-    const char *slash = strrchr(cr2, '/');
-    out[0] = 0;
-    if (!slash || slash - cr2 >= (int) sizeof(dir)) return;
-    memcpy(dir, cr2, slash - cr2);
-    dir[slash - cr2] = 0;
-    memset(used, 0, sizeof(used));
-    if (fos_port_list(dir, twin_seen, used) < 0) return;
-    for (int n = 1; n <= 9999; n++)
-        if (!(used[n >> 3] & (1 << (n & 7)))) { snprintf(out, size, "%s/FLM_%04d.JPG", dir, n); return; }
-}
-
-static void twin_copy(const char *from, const char *to)
-{
-    /* a big buffer when there is one (fewer trips to the card), else the small one that is always there */
-    static uint8_t small[4096];
-    int size = 64 * 1024;
-    uint8_t *buf = fos_port_alloc(size);
-    if (!buf) { buf = small; size = sizeof(small); }
-    void *in = fos_port_open(from, 0), *out = in ? fos_port_open(to, 1) : 0;
-    int n, ok = out != 0;
-    while (ok && (n = fos_port_read(in, buf, size)) > 0) ok = fos_port_write(out, buf, n) == n;
-    if (in) fos_port_close(in);
-    if (out) fos_port_close(out);
-    if (buf != small) fos_port_free(buf);
-    if (!ok) fos_port_log("darkroom: can't copy the JPEG beside the RAW");
-}
-
 static void frame_finished(int ok)
 {
     char msg[160];
@@ -747,7 +691,6 @@ static void frame_finished(int ok)
         ms_per_frame[size] = done_frames - failed_frames < 3 ? took : (ms_per_frame[size] * 3 + took) / 4;
         snprintf(msg, sizeof(msg), "darkroom: roll %03d frame %d developed in %d ms, %d x %d", cur_roll, cur_frame, took, dv_w, dv_h);
         fos_port_log(msg);
-        if (cur_jpeg[0] && cur_copy[0]) twin_copy(cur_jpeg, cur_copy);
         if (!pending_frame)
         {
             pending_frame = cur_frame;
