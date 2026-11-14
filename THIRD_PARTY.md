@@ -7,10 +7,6 @@
 - **Film-Luts** by Yahia Angelo (MIT License, below): the export of G'MIC's built-in film tables that the
   build downloads those tables from, https://github.com/YahiaAngelo/Film-Luts. Its `.cube` files are *not*
   in this repository: the camera build (`ml-dev/films/getluts.py`) and Darkrooms download them.
-- **The colour tables of 4 cinema print film stocks** (Kodak Vision 2383 and 2393, Fujifilm Eterna 3510 and
-  3513) are Juan Melara's print film emulation tables, through G'MIC and Film-Luts. No licence is stated for
-  them: they are listed here for credit. This 6D Mark II build keeps them, fed the Cineon log scan they expect
-  (upstream M-Film took them off the shelf, #126).
 - **Barlow** font family (SIL Open Font License 1.1): `ml-dev/filmos/fonts/OFL.txt`.
 - Film names and box art are descriptive and made for this project; they are not affiliated with or endorsed
   by Kodak, Fujifilm, CineStill, Ilford, Agfa or others. "Canon" and "EOS M" are trademarks of Canon Inc.;
