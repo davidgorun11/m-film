@@ -2236,6 +2236,9 @@ int fos_dev_made(const struct fos_dev *d, int *w, int *h)
 void fos_dev_free(struct fos_dev *d)
 {
     if (!d) return;
+#ifdef FOS_BIG2
+    fos_port_log("dev: freeing the frame");
+#endif
 #ifdef FOS_HELPER
     help_end(d);
 #endif
@@ -2863,26 +2866,30 @@ int fos_dev_big2 = 1;                   /* 0: one core (devtest FOS_BIG2=0, to c
 
 struct bwork
 {
-    struct fos_dev *d;
-    volatile int seq, done, quit, gone;
+    struct fos_dev *volatile d;         /* the frame it works for */
+    volatile int seq, done;
     int job, y0, n, row0;               /* job 1: finish rows y0 .. y0 + n - 1; 2: dither them; row0: the band's first */
     unsigned bus[9];
     struct bscratch sc;
 };
 
+/* The task on the other core lives as long as the camera: started once, it
+ * never ends, never allocates or frees. (2026-11-14: twice the camera
+ * restarted when this task ended and the frame's memory was freed right
+ * after, the two cores at the heap at once.) Asleep but for its jobs. */
+static struct bwork *bwork_task;
+static int bwork_failed;
+
 static void bwork_run(void *arg)
 {
     struct bwork *w = arg;
-    struct fos_dev *d = w->d;
     int last = 0;
     for (;;)
     {
-        /* asleep between jobs, so Canon's tasks on this core aren't kept from it
-         * (2026-11-14: 12 s of spinning here, and the camera restarted after) */
-        while (!w->quit && w->seq == last) fos_port_wake_wait();
-        if (w->quit) break;
+        while (w->seq == last) fos_port_wake_wait();
         __sync_synchronize();
         last = w->seq;
+        struct fos_dev *d = w->d;
         const int bw = d->bw;
         for (int i = 0; i < w->n; i++)
         {
@@ -2893,8 +2900,6 @@ static void bwork_run(void *arg)
         __sync_synchronize();
         w->done = last;
     }
-    __sync_synchronize();
-    w->gone = 1;
 }
 
 static void bwork_post(struct bwork *w, int job, int y0, int n, int row0)
@@ -2911,33 +2916,40 @@ static void bwork_wait(struct bwork *w)
     __sync_synchronize();
 }
 
+/* the frame's big print gets the other core: its room from this core's memory */
 static void bwork_start(struct fos_dev *d)
 {
-    if (!fos_dev_big2) return;
+    if (!fos_dev_big2 || bwork_failed) return;
+    if (!bwork_task)
+    {
+        struct bwork *w = fos_port_alloc(sizeof(*w));     /* kept for good */
+        if (!w) return;
+        memset(w, 0, sizeof(*w));
+        if (!fos_port_helper(bwork_run, w)) { fos_port_free(w); bwork_failed = 1; return; }
+        bwork_task = w;
+        fos_port_log("dev: the other core's task started (it stays)");
+    }
+    struct bwork *w = bwork_task;
     const int bw = d->bw;
-    struct bwork *w = fos_port_alloc(sizeof(*w) + bw * 3 * 4 + bw * 3 * 2 * 2);
-    if (!w) return;
-    memset(w, 0, sizeof(*w));
-    w->d = d;
-    w->sc.t32 = (uint32_t *) (w + 1);
+    uint8_t *room = fos_port_alloc(bw * 3 * 4 + bw * 3 * 2 * 2);
+    if (!room) return;
+    w->sc.t32 = (uint32_t *) room;
     w->sc.cam = (uint16_t *) (w->sc.t32 + bw * 3);
     w->sc.lin = w->sc.cam + bw * 3;
     w->sc.bus = w->bus;
-    if (!fos_port_helper(bwork_run, w)) { fos_port_free(w); return; }
+    w->d = d;
     d->bwork = w;
 }
 
+/* the frame done with the other core: it is idle (every job waited for), its room freed here */
 static void bwork_stop(struct fos_dev *d)
 {
     struct bwork *w = d->bwork;
     if (!w) return;
-    w->quit = 1;
-    __sync_synchronize();
-    fos_port_wake();
-    while (!w->gone) {}                 /* it ends its job first, if one is on */
-    fos_port_free(w);
+    bwork_wait(w);
+    fos_port_free(w->sc.t32);
+    w->sc.t32 = 0;
     d->bwork = 0;
-    fos_port_log("dev: the other core's task has ended");
 }
 #endif
 
