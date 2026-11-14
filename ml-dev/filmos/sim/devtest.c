@@ -7,6 +7,10 @@
  * out.ppm is the print as the screen would show it.
  * FOS_SIZE=1|2 the bigger print as the JPEG (FOS_JPEG), FOS_ZOOM its zoom
  * file, FOS_STAMP=1 the date on it, FOS_MEM_KB a camera short of memory.
+ * FOS_LUT_DIR=dir the films' tables, as the card's ML/DARKROOM has them
+ * (tools/gentables.py makes them). Without a table the frame fails, as on the
+ * camera. FOS_MIX=1 instead mixes the film's table from its look in memory,
+ * for a test that needs a print and not that film's real colour.
  */
 
 #include <stdio.h>
@@ -154,8 +158,9 @@ int main(int argc, char **argv)
                                         "       devtest -S in.CR2 dir    (the shelf's samples)\n"); return 2; }
     if (rawpath && !load_u16(rawpath)) return 1;
 
-    /* FOS_LUT_DIR: keep the film tables there, as the camera does */
+    /* FOS_LUT_DIR: the film tables are there, as on the camera's card; FOS_MIX: mixed here instead */
     if (getenv("FOS_LUT_DIR")) fos_dev_cache(getenv("FOS_LUT_DIR"));
+    if (getenv("FOS_MIX")) { fos_dev_cache(""); fos_dev_table(film); }
     int t0 = fos_port_ms(), steps = 0, p = 0;
     struct fos_dev *d = fos_dev_start(argv[a], argv[a + 1], film, 1, "2026-10-22 17:45", "2.8");
     /* FOS_JPEG: the full-colour frame as a JPEG too, as the camera writes it to DCIM */
