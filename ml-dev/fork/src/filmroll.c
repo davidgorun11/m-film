@@ -555,6 +555,7 @@ static uint32_t palette_probe __attribute__((unused)) = 0;   /* unused with FEAT
 
 /* a photograph on the screen: its colours in 1..photo_n, at photo_k/256 */
 static int photo_mode = 0, photo_n = 0, photo_k = 256;
+static int ui_open_t;                   /* when film_ui_open finished */
 static int photo_pending;                /* FOS_PHOTO_WITH_FRAME: palette_ours() at the next fos_port_present */
 static uint8_t (*photo_pal)[3];                 /* allocated when a print is first shown */
 
@@ -728,7 +729,7 @@ static void film_ui_open()
 #ifdef FEATURE_VRAM_RGBA
     ml_refresh_full = 1;
 #endif
-    ui_last_mode_poke = get_ms_clock();
+    ui_last_mode_poke = ui_open_t = get_ms_clock();
 }
 
 static void film_ui_close()
@@ -1016,6 +1017,7 @@ void fos_port_present(const uint8_t *rows, int pitch, int y0, int y1)
         ui_last_palette = get_ms_clock();
     }
 #ifdef FEATURE_VRAM_RGBA
+    if (get_ms_clock() - ui_open_t < 1000) ml_refresh_full = 1;    /* every row, as fos_ui repaints the first second */
     ml_refresh_display_needed = 1;
 #endif
 }
