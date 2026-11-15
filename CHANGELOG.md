@@ -3,7 +3,18 @@
 What changed in M-Film for the Canon EOS 6D Mark II, newest first. For what the fork adds to the original
 M-Film as a whole, see the [README](README.md).
 
-## 0.2.1-6d2.2 (not released yet)
+## Next (not released yet)
+
+From the original M-Film:
+
+- **The darkroom develops with the white balance the camera was on** (#123). It used one fixed balance for
+  every frame, which left a daylight grey warm before the film did anything. Loading a roll now sets the
+  camera to the light the film is balanced for, 5500 K or 3200 K, with no shift.
+- **The Film-Luts films get a finished photo's tone** (#125): their tables were made on finished photos, and
+  they now get that contrast instead of the plain sRGB curve. The four cinema print films keep their Cineon
+  input (#107), which the original replaced by taking them off the shelf.
+
+## 0.2.1-6d2.2 (2026-11-15)
 
 ### Faster developing
 
