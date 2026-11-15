@@ -641,6 +641,18 @@ static void palette_canon()
 #endif
 
 #ifdef FEATURE_VRAM_RGBA
+/* put what is in the index buffer on the panel. ML's refresh task waits for DISPLAY_IS_ON, but Canon lights
+ * the panel with its playback picture ~0.3 s before it says so (the picture still showed, 2026-11-15): until
+ * then refresh from here, as ML's own menu does */
+static void black_now()
+{
+    ml_refresh_full = 1;
+    if (DISPLAY_IS_ON) { ml_refresh_display_needed = 1; return; }
+    ml_refresh_busy = 1;
+    refresh_yuv_from_rgb();
+    ml_refresh_busy = 0;
+}
+
 /* the whole screen opaque black, through table entry 255 (ours alone; palette_canon empties it), and wait
  * until it is on the panel: Canon's playback, which the film OS runs in, shows its last picture otherwise */
 static int osd_black()
@@ -650,8 +662,7 @@ static int osd_black()
     bmp_rgb_lut()[255] = 0xFF000000;
     for (int y = 0; y < 480; y++) memset(vram + y * BMPPITCH, 255, 720);
     uint32_t n0 = ml_refresh_count;
-    ml_refresh_full = 1;
-    ml_refresh_display_needed = 1;
+    black_now();
     for (int w = 0; DISPLAY_IS_ON && ml_refresh_count == n0 && w < 30; w++) msleep(10);
     return 1;
 }
@@ -663,8 +674,7 @@ static void wait_black(int ms)
     for (int t = 0; t < ms; t += 10)
     {
         canon_gui_disable_front_buffer();       /* a mode change may give Canon its buffer back: its numbers showed */
-        ml_refresh_full = 1;
-        ml_refresh_display_needed = 1;
+        black_now();
         msleep(10);
     }
 }
@@ -2061,9 +2071,7 @@ static void startup_task()
         return;
     }
     int shelf = startup_picker == 2 || (startup_picker == 1 && !ROLL_IN_PROGRESS);
-    if (boot_anim && startup_picker)
-        open_ui(shelf ? FOS_OPEN_BOOT : FOS_OPEN_BOOT_LV);
-    else if (shelf)
+    if (shelf)                  /* no boot animation any more (the user, 2026-11-15): FS_BOOTANIM stays, unused */
         open_ui(FOS_OPEN_SHELF);
 }
 

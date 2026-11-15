@@ -324,7 +324,6 @@ static const struct item system_items[] =
     { "Zoom in Prints", IT_TOGGLE, FS_ZOOM, 0, 0, "Medium and Large prints: look closer in Prints. Off: about 2 s less a frame, 6 MB less." },
     { "Date stamp", IT_TOGGLE, FS_STAMP, 0, 0, "The date in the corner of each print, in orange, as a data back burns it in." },
     { "Start screen", IT_CHOICE, FS_STARTUP, start_choices, 3, "The film shelf when the camera turns on." },
-    { "Boot animation", IT_TOGGLE, FS_BOOTANIM, 0, 0, "The aperture opening on the name at power on." },
     { "Screen colour", IT_PAGE, PAGE_SCREEN, 0, 0, "Match these colours to what you see around you." },
     { "PLAY shows prints only", IT_TOGGLE, FS_PLAYLOCK, 0, 0, "Canon's playback would show frames the darkroom hasn't developed." },
     { "Re-apply film settings", IT_ACTION, FA_REAPPLY, 0, 0, "After changing picture style, white balance or ISO by hand." },
@@ -349,7 +348,7 @@ static const struct { const char *title; const char *sub; const struct item *ite
 {
     { "Viewfinder", "What you see in LiveView while you shoot", finder_items, 4 },
     { "Lens", "Aperture for manual lenses", lens_items, 4 },
-    { "System", "Film mode, screen colour, start up and the Canon menu", system_items, 11 },
+    { "System", "Film mode, screen colour, start up and the Canon menu", system_items, 10 },
     { "Screen colour", "Live: the whole film OS changes as you go", screen_items, 5 },
 };
 
