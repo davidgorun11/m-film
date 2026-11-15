@@ -11,7 +11,7 @@ GRAY, METAL, AMBER, RED, ORANGE, CRIMSON, GREEN, VIOLET, BLUE = range(9)
 BAND, CAP, STRIPES = range(3)
 
 DESC = {
-    "cinestill400t": "Cine film, cool shadows, red halos",
+    "cinestill400t": "M-Film's own cine look, red halos",
     "portra160": "Fine grain, natural skin tones",
     "portra800": "Low light portraits, warm grain",
     "portra160nc": "Natural colour, soft contrast",
@@ -24,7 +24,7 @@ DESC = {
     "pro160c": "Crisp colour, cool and clean",
     "pro400h": "Airy pastels, fourth colour layer",
     "pro800z": "Night portraits, soft palette",
-    "reala100": "True-to-life colour, fine grain",
+    "reala100": "Natural colour, fine grain",
     "superia100": "Clean daylight colour",
     "superia200": "Fuji greens, everyday snaps",
     "superia800": "Indoor speed, Fuji colour",
@@ -34,7 +34,7 @@ DESC = {
     "ultra100": "Saturated, punchy Agfa colour",
     "redscale100": "Shot through the back: red-orange",
     "velvia100": "Rich colour, softer than the 50",
-    "provia100f": "Neutral slide, faithful colour",
+    "provia100f": "Neutral slide, balanced colour",
     "provia400f": "Fast slide, clean colour",
     "provia400x": "Fast slide, finer grain",
     "astia100f": "Soft slide film for skin",
@@ -55,7 +55,7 @@ DESC = {
     "tmax400": "Sharp, modern B&W",
     "tmax3200": "Push-ready, grainy nights",
     "bw400cn": "Chromogenic B&W, smooth grain",
-    "hie": "Infrared: white leaves, dark skies",
+    "hie": "Infrared impression, white leaves",
     "delta100": "Fine, sharp modern B&W",
     "delta400": "Smooth grain at 400",
     "delta3200": "Pushes into the dark",
@@ -70,7 +70,7 @@ DESC = {
     "retro80s": "Extended red, dark skies",
     "retro100": "Soft tonal B&W",
     "ortho25": "Orthochromatic: reds go dark",
-    "ir400": "Infrared touch, glowing foliage",
+    "ir400": "Infrared impression, bright leaves",
 }
 
 
