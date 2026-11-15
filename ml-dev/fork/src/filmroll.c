@@ -79,7 +79,7 @@ static CONFIG_INT("filmroll.leds",      leds_on_half,     1);
 static CONFIG_INT("filmroll.wind",      wind_mode,        1);   /* 0 off, 1 reminder, 2 block shutter */
 static CONFIG_INT("filmroll.playlock",  play_lock,        0);   /* off: PLAY on the shooting screen is Canon's playback */
 static CONFIG_INT("filmroll.startup",   startup_picker,   2);   /* 0 off, 1 when no film, 2 always */
-static CONFIG_INT("filmroll.bootanim",  boot_anim,        1);
+static CONFIG_INT("filmroll.bootanim",  boot_anim,        0);   /* an option, off (the user, 2026-11-15) */
 static CONFIG_INT("filmroll.debug",     debug_log,        1);
 static CONFIG_INT("filmroll.mode",      film_mode,        0);   /* 0 Basic, 1 Realistic (FS_MODE) */
 static CONFIG_INT("filmroll.lens_wide", lens_widest,      6);   /* index into fos_fstops: f/1.8 */
@@ -2071,7 +2071,9 @@ static void startup_task()
         return;
     }
     int shelf = startup_picker == 2 || (startup_picker == 1 && !ROLL_IN_PROGRESS);
-    if (shelf)                  /* no boot animation any more (the user, 2026-11-15): FS_BOOTANIM stays, unused */
+    if (boot_anim && startup_picker)
+        open_ui(shelf ? FOS_OPEN_BOOT : FOS_OPEN_BOOT_LV);
+    else if (shelf)
         open_ui(FOS_OPEN_SHELF);
 }
 
