@@ -662,6 +662,7 @@ static void wait_black(int ms)
 {
     for (int t = 0; t < ms; t += 10)
     {
+        canon_gui_disable_front_buffer();       /* a mode change may give Canon its buffer back: its numbers showed */
         ml_refresh_full = 1;
         ml_refresh_display_needed = 1;
         msleep(10);
@@ -689,6 +690,7 @@ static void film_ui_open()
 #ifdef FEATURE_VRAM_RGBA
     osd_black();                /* before Canon's playback comes up under us with its last picture */
 #endif
+    canon_gui_disable_front_buffer();   /* and before it draws its numbers around it (the user, 2026-11-15); again below */
     SetGUIRequestMode(GUIMODE_ML_MENU);
     wait_black(200);
     /* With the viewfinder ML's menu mode is Canon's playback (GUIMODE_ML_MENU), which lights the back screen
