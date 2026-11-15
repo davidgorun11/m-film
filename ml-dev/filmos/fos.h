@@ -123,6 +123,7 @@ enum
     FS_FADE,            /* the short fade between screens (shelf, darkroom, prints); 0: every screen changes at once */
     FS_CANON_OFF,       /* Canon's own LiveView graphics kept off the viewfinder (its exposure scale drew over
                            the HUD, #67); the port answers -1 where that is always so: not shown */
+    FS_ZOOM,            /* a zoom file beside each medium or large print, to zoom into in Prints (off: develops faster) */
     FS_COUNT
 };
 #define FOS_SCR_STEPS 6

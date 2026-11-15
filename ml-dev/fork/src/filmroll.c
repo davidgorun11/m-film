@@ -96,6 +96,7 @@ static CONFIG_INT("filmroll.scr_flip",  scr_flip,         0);   /* 0 Canon's hin
 static CONFIG_INT("filmroll.expsim",    expsim_set,      -1);   /* LiveView's exposure simulation: 1 on, 0 off, -1 as Canon has it */
 static CONFIG_INT("filmroll.hud_style", hud_style,        0);   /* FOS_HUD_*: classic, minimal, rangefinder, clean */
 static CONFIG_INT("filmroll.hud_batt",  hud_batt,         1);   /* the battery on the HUD */
+static CONFIG_INT("filmroll.zoom",      print_zoom,       0);   /* a zoom file beside each bigger print; off, faster (6D2 fork) */
 static CONFIG_INT("filmroll.size",      print_size,       1);   /* FOS_SIZE_*: the darkroom's prints (S, M, L) */
 static CONFIG_INT("filmroll.stamp",     date_stamp,       0);   /* the date in the corner of each print */
 static CONFIG_INT("filmroll.recent",    recent_films,     0);   /* the films loaded last (FS_RECENT) */
@@ -1448,6 +1449,7 @@ static int *setting_var(int s)
         case FS_HUD_STYLE:  return &hud_style;
         case FS_HUD_BATT:   return &hud_batt;
         case FS_SIZE:       return &print_size;
+        case FS_ZOOM:       return &print_zoom;
         case FS_STAMP:      return &date_stamp;
         case FS_RECENT:     return &recent_films;
         case FS_FADE:       return &page_fade;

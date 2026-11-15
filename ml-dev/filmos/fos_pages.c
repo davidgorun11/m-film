@@ -372,6 +372,7 @@ static const struct item settings_items[] =
     { "Viewfinder", IT_CHOICE, VS_FINDER, hud_names, FOS_HUD_STYLES + 1, "What shows over LiveView while you shoot." },
     { "Exposure simulation", IT_TOGGLE, FS_EXPSIM, 0, 0, "On: LiveView shows the exposure you'll get. Off: bright, to focus a manual lens." },
     { "Print size", IT_CHOICE, FS_SIZE, size_choices, FOS_SIZES, "How big the darkroom develops. Bigger prints zoom in further and take longer." },
+    { "Zoom in Prints", IT_TOGGLE, FS_ZOOM, 0, 0, "Medium and Large prints: look closer in Prints. Off: develops faster, a file less." },
     { "Date stamp", IT_TOGGLE, FS_STAMP, 0, 0, "The day it was shot in the corner of each print, like a compact's data back." },
     { "Film mode", IT_CHOICE, FS_MODE, mode_choices, 2, "Basic: a finished roll goes straight to the darkroom. Realistic: rewind it first." },
     { "Manual lens", IT_PAGE, PAGE_LENS, 0, 0, "The aperture of an adapted lens, which the camera can't read." },
