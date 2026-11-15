@@ -699,6 +699,26 @@ static void film_ui_close()
     }
     /* the same order as above: the palette going back repaints whatever is still in the index buffer in ML's colours,
      * and that is what stayed on the screen when the shutter took us out of a menu */
+#ifdef FEATURE_VRAM_RGBA
+    /* Under the film OS Canon's playback still holds the last picture: blanking our layer first showed it for
+     * a moment before the screen went dark (the user, 2026-11-15). Cover the screen in opaque black, leave
+     * Canon's mode while it covers, and only then blank. Entry 255 is ours alone; palette_canon empties it. */
+    {
+        uint8_t *vram = bmp_vram();
+        if (vram)
+        {
+            bmp_rgb_lut()[255] = 0xFF000000;
+            for (int y = 0; y < 480; y++) memset(vram + y * BMPPITCH, 255, 720);
+            uint32_t n0 = ml_refresh_count;
+            ml_refresh_full = 1;
+            ml_refresh_display_needed = 1;
+            for (int w = 0; ml_refresh_count == n0 && w < 30; w++) msleep(10);
+            SetGUIRequestMode(0);
+            for (int w = 0; CURRENT_GUI_MODE == GUIMODE_ML_MENU && w < 50; w++) msleep(10);
+            msleep(100);
+        }
+    }
+#endif
     clrscr();
     for (int w = 0; ml_refresh_busy && w < 100; w++)
         msleep(1);
