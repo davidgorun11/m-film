@@ -26,15 +26,12 @@ static int dmg_y0 = FOS_H, dmg_y1 = 0;
 
 /* screen change in progress */
 static int tr_how, tr_t, tr_len;            /* tr_t counts up to tr_len (ms) */
-static int leaving;                         /* 1 while the shutter opens on LiveView */
-static int leave_t;
 static int quit;
 static int boot_then_leave;
 
-/* opening: the shutter closes over LiveView, then opens on us */
+/* opening: the shutter closes over LiveView, then opens on us; leaving is a cut, no animation */
 static int enter_t;
 #define ENTER_LEN 420
-#define LEAVE_LEN 380
 
 /* the toast */
 static char toast_msg[80];
@@ -521,7 +518,7 @@ void ui_go(int to, int arg, int how)
 
 int ui_settled()
 {
-    return !(tr_len && tr_t < tr_len) && !leaving && enter_t >= ENTER_LEN;
+    return !(tr_len && tr_t < tr_len) && enter_t >= ENTER_LEN;
 }
 
 int ui_from()
@@ -531,9 +528,7 @@ int ui_from()
 
 void ui_leave()
 {
-    if (leaving) return;
-    leaving = 1;
-    leave_t = 0;
+    quit = 1;
 }
 
 /* ---------------------------------------------------------------- the loop */
@@ -761,7 +756,6 @@ void fos_ui_run(int open)
         return;
     fos_port_roll(&ui_roll);
     quit = 0;
-    leaving = 0;
     held_key = 0;
     toast_t = TOAST_LEN;
     screen = SCR_NONE;
@@ -816,13 +810,13 @@ void fos_ui_run(int open)
                 continue;
             }
             if (is_repeating(k)) { held_key = k; held_since = now; held_last = now; }
-            if (leaving || enter_t < ENTER_LEN) continue;
+            if (quit || enter_t < ENTER_LEN) continue;
             screen_key(k);
         }
         /* a release that never came must not scroll forever */
         if (held_key && now - held_since > 3000)
             held_key = 0;
-        if (held_key && now - held_since > 420 && now - held_last > 95 && !leaving)
+        if (held_key && now - held_since > 420 && now - held_last > 95 && !quit)
         {
             held_last = now;
             screen_key(held_key);
@@ -850,28 +844,14 @@ void fos_ui_run(int open)
 
         int in_tr = tr_len && tr_t < tr_len;
         int t_draw = fos_port_ms();
-        if (enter_t < ENTER_LEN || leaving)
+        if (quit) break;
+        if (enter_t < ENTER_LEN)
         {
-            /* the shutter: closes over LiveView, opens on us (and the
-             * reverse when leaving) */
-            int t;
-            if (leaving) { leave_t += dt; t = leave_t; }
-            else         { enter_t += dt; t = enter_t; }
+            /* the shutter: closes over LiveView, opens on us */
+            int t = enter_t += dt;
             if (screen != SCR_BOOT) screen_draw();
             int open_k;
             int ang = (int) (t * 9);
-            if (leaving)
-            {
-                float f = clampf((float) t / LEAVE_LEN, 0, 1);
-                if (f < 0.35f) open_k = (int) ((1 - ease_out(f / 0.35f)) * 4096);
-                else
-                {
-                    memset(buf_cv, IX_CLEAR, FOS_W * FOS_H);
-                    open_k = (int) (ease_out((f - 0.35f) / 0.65f) * 4096);
-                }
-                if (t >= LEAVE_LEN) quit = 1;
-            }
-            else
             {
                 float f = clampf((float) t / ENTER_LEN, 0, 1);
                 if (f < 0.4f)
