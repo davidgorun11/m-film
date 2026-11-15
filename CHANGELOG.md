@@ -64,6 +64,12 @@ A whole roll develops about a third faster than in 0.2.1-6d2.1. Measured on the 
 - A frame clips where its own samples clip.
 - Every film's colour table is made in one place; the camera makes none.
 
+### Install instructions
+
+- **After formatting the card, run the firmware update again** (MENU → *Firmware ver.*). The README used to
+  say it was needed once per camera, but formatting in the camera clears the card's mark to start Magic
+  Lantern, and without it the camera starts without M-Film.
+
 ### Log
 
 - `ML/FILMROLL.LOG` notes the screen state and Canon's auto power off, and writes "startup waiting" only when

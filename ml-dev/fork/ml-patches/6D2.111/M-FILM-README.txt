@@ -24,7 +24,8 @@ Install
      card's top level must show autoexec.bin, ML-SETUP.FIR and the ML folder, not a folder with
      them inside (unzipping often makes one).
   3. Put the card in the camera, then MENU > Firmware ver. > update, and follow the screen.
-     You do this once per camera, not once per card.
+     This also marks the card to start Magic Lantern. Formatting the card in the camera clears
+     that mark, so do this step again after every format.
   4. Switch the camera off and on. Press Trash to open the film OS (with or without LiveView).
 
 Update to a new version of this fork
@@ -32,7 +33,7 @@ Update to a new version of this fork
   1. Develop the roll and copy your photos off the card.
   2. Format the card in the camera.
   3. Copy the new zip's files to the card.
-  Step 3 of the install isn't needed again.
+  4. MENU > Firmware ver. > update again: the format cleared the card's start mark (install step 3).
 
 If something goes wrong
   - The camera doesn't start (black screen, card light stays on): take the battery out, take the

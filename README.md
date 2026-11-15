@@ -25,10 +25,11 @@ The zip has everything, Magic Lantern included: you don't install Magic Lantern 
 3. Unzip `M-Film-camera-6D2.111.zip` onto the card's root. The top of the card must show
    `autoexec.bin`, `ML-SETUP.FIR` and the `ML` folder.
 4. MENU → *Firmware ver.* → update. Follow the screen, then switch the camera off and on.
-   You do this once per camera.
+   This also marks the card to start Magic Lantern, and formatting the card in the camera clears that mark.
+   Do this step again after every format.
 5. Press **Trash** to open M-Film. This works with or without LiveView.
 
-To update, format the card in the camera and copy the new zip's files to it. Step 4 isn't needed again.
+To update, format the card in the camera, copy the new zip's files to it and run step 4 again.
 To remove M-Film, format the card: a card without Magic Lantern starts the camera as usual.
 
 If the camera doesn't start, take the battery out and remove the card. Without the card it starts as usual.
