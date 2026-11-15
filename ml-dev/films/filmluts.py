@@ -19,13 +19,11 @@ camera, so they could never be measured against the real thing (#110, #126).
 films.py turns them into lab films: the colour from the LUT, the rest
 (scanner exposure, halation, grain, softness) from the kind and speed.
 The LUTs take ordinary finished photos as input, so they are given a
-finished photo's tone curve and not the plain sRGB one (lut.py, "photo");
-the print ones take log film scans (Cineon, #107).
+finished photo's tone curve and not the plain sRGB one (lut.py, "photo").
 """
 
 REPO = "https://github.com/YahiaAngelo/Film-Luts"
-COMMIT = "af957b631a304e6be94778b96cb3395de3438e9f"   # 2024-03-07: one commit, so a release's colour never moves with that repository (#102)
-ZIP = f"https://codeload.github.com/YahiaAngelo/Film-Luts/zip/{COMMIT}"
+ZIP = "https://codeload.github.com/YahiaAngelo/Film-Luts/zip/refs/heads/main"
 DIR = "filmluts"                    # under films/luts/
 
 STOCKS = [
@@ -105,36 +103,35 @@ def grain_for(iso, kind):
     return round(amount, 4), round(0.7 + 0.11 * steps, 2)
 
 
-# The professional 400s are finer than their box speed says (#80): the grain
-# of these, amplitude and clump size, in place of grain_for's. Pro 400H just
-# above Portra 400 in films.py; the older Portra 400s a step coarser.
-GRAIN = {
-    "pro400h": (0.016, 1.0),
-    "portra400nc": (0.018, 1.05),
-    "portra400vc": (0.018, 1.05),
-    "portra400uc": (0.018, 1.05),
+# The glow round highlights (halation), by eye: a camera film has a layer against it, and its glow is faint.
+# 0.3 from 0.93 up for a negative and half that for a slide or a black and white film are about what the
+# maintainer set on the five stocks tuned on the Colour Tuner (Nov 2026: 0.2 to 0.4, from 0.91 to 0.97 up).
+# Those that are their own:
+GLOW = {
+    "portra160": dict(halation=0.3, hal_thr=0.93, hal_tint=(1.0, 0.52, 0.38)),      # as tuned
+    "hie": dict(halation=0.4, hal_thr=0.75),        # Kodak HIE has no layer against it: its highlights bloom
 }
 
 
 def film(key, path, brand, name, iso, kind):
-    amount, size = GRAIN.get(key) or grain_for(iso, kind)
+    amount, size = grain_for(iso, kind)
     f = dict(
         name=f"{brand} {name}", iso=iso, kind=kind, balance=5500,
-        # "photo": the tables were made by eye on finished photos, so they are fed one (lut.py, #125);
-        # the print tables are Juan Melara's, made for log film scans in Rec.709 (#107): Cineon, the scan's own encoding
-        lut=f"{DIR}/{path}.cube", lut_space="cineon" if kind == "print" else "photo",
+        # "photo": the tables were made by eye on finished photos, so they are fed one (lut.py, #125)
+        lut=f"{DIR}/{path}.cube", lut_space="photo",
         # the film's own colour when the LUT isn't there: a plain print
         ev=0.2 if kind == "neg" else 0.0, sat=1.0,
         contrast=(0.18, 0.18, 0.18), pivot=(0.0, 0.0, 0.0),
         black=(0.03, 0.03, 0.03), white=(0.96, 0.96, 0.96),
-        halation=0.8, grain=amount, grain_size=size, soft=0.7,
+        halation=0.3, hal_thr=0.93, grain=amount, grain_size=size, soft=0.7,
     )
     if kind in ("slide", "xpro"):
         f.update(slide=True, contrast=(0.22, 0.22, 0.22), black=(0.015,) * 3, white=(0.98,) * 3,
-                 halation=0.4, soft=0.5)
+                 halation=0.15, soft=0.5)
     if kind == "bw":
         f.update(mono=(0.30, 0.59, 0.11), contrast=(0.19,), pivot=(0.0,), black=(0.03,), white=(0.96,),
-                 halation=0.4)
+                 halation=0.15)
+    f.update(GLOW.get(key, {}))
     return f
 
 

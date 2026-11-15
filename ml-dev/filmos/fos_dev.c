@@ -2632,10 +2632,15 @@ static void glow_pos(int p, int n, uint8_t *cell, uint8_t *frac)
  * table, the grain. */
 
 /* n pixels from lin: the vignette (vig[x] for pixel x, in 1/4096) and the
- * halation (the glow row grow mixed along it by gx, fx; hal: its colour)
- * on the linear light, then its place on the grid */
+ * halation (the glow row grow mixed along it by gx, fx; hal: its colour;
+ * thr: the luminance the glow was gathered above) on the linear light,
+ * then its place on the grid. A pixel is lit by what the highlights about
+ * it send over what it sends itself: a highlight's own light is in the
+ * film's table already, so a bright wall or a white patch of a chart keeps
+ * the table's colour, and the glow falls on what lies beside it. */
 static __attribute__((noinline)) void finish_pos(const uint16_t *lin, uint16_t *pos, int n, int vy, const int16_t *vx,
-                                                 const int32_t *grow, const uint8_t *gx, const uint8_t *fx, const int *hal)
+                                                 const int32_t *grow, const uint8_t *gx, const uint8_t *fx, const int *hal,
+                                                 int thr)
 {
     const uint16_t *cin = tab->cin;
     if (!grow)
@@ -2655,6 +2660,8 @@ static __attribute__((noinline)) void finish_pos(const uint16_t *lin, uint16_t *
         int vig = vy - *vx;
         int a = *gx, f = *fx;
         int glow = (grow[a] * (8 - f) + grow[a + 1] * f) >> 6;
+        int own = ((871 * lin[0] + 2929 * lin[1] + 296 * lin[2]) >> 12) - thr;     /* as expose_lin gathered it */
+        if (own > 0) { glow -= own; if (glow < 0) glow = 0; }
         pos[0] = cin_pos(cin, ((lin[0] * vig) >> 12) + ((glow * h0) >> 8));
         pos[1] = cin_pos(cin, ((lin[1] * vig) >> 12) + ((glow * h1) >> 8));
         pos[2] = cin_pos(cin, ((lin[2] * vig) >> 12) + ((glow * h2) >> 8));
@@ -2716,7 +2723,7 @@ static __attribute__((noinline)) void stage_finish(struct fos_dev *d, int y)
     memset(o, 0, 3 * px0);
     memset(o + 3 * (px0 + pw), 0, 3 * (W - px0 - pw));
     finish_pos(d->lin + 3 * (y * W + px0), d->pos, pw, 4096 - d->vig_y[y], d->vig_x,
-               d->glow ? grow : 0, d->gx + px0, d->fx + px0, hal);
+               d->glow ? grow : 0, d->gx + px0, d->fx + px0, hal, (int) (L->hal_thr * 4096));
     finish_lut(d->pos, o + 3 * px0, pw);
     int grain = (int) (L->grain * 255 * 0.55f * 256);
     if (grain) d->seed = finish_grain(o + 3 * px0, pw, d->seed, grain, L->mono);
@@ -2977,7 +2984,8 @@ static __attribute__((noinline)) void big_finish(struct fos_dev *d, int y, uint8
         const int32_t *g0 = d->glow + gy * GW, *g1 = g0 + GW;
         for (int j = 0; j < GW; j++) grow[j] = g0[j] * (8 - fy) + g1[j] * fy;
     }
-    finish_pos(sc->lin, sc->cam, bw, 4096 - d->bvig_y[y], d->bvig_x, d->glow ? grow : 0, d->bgx, d->bfx, hal);
+    finish_pos(sc->lin, sc->cam, bw, 4096 - d->bvig_y[y], d->bvig_x, d->glow ? grow : 0, d->bgx, d->bfx, hal,
+               (int) (L->hal_thr * 4096));
     u1 = FOS_US(); bus[3] += u1 - u0; u0 = u1;
     finish_lut(sc->cam, rgb, bw);
     u1 = FOS_US(); bus[4] += u1 - u0; u0 = u1;
