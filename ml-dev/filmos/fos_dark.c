@@ -645,7 +645,7 @@ static void next_job()
                 /* the bigger print (M-Film 0.2): the JPEG at that size, and a file to zoom into beside the print */
                 char zoom[64];
                 fos_lab_zoom_path(zoom, sizeof(zoom), cur_roll, f->no);
-                fos_dev_big(dev, dv_size, zoom);
+                fos_dev_big(dev, dv_size, fos_port_get(FS_ZOOM) ? zoom : 0);
             }
             dv_made = -1;
             if (dev && jpeg[0]) fos_dev_jpeg(dev, jpeg);

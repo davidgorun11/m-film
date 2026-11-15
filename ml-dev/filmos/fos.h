@@ -110,6 +110,7 @@ enum
     FS_SCR_SAT, FS_SCR_WARM, FS_SCR_BRIGHT,     /* -FOS_SCR_STEPS..FOS_SCR_STEPS */
     FS_STAMP,           /* the date in the corner of each print, as a data back burns it in */
     FS_SIZE,            /* the darkroom's prints: FOS_SIZE_S (the screen's 720 x 480), _M (the sensor 3 x 3 to a pixel), _L (2 x 2) */
+    FS_ZOOM,            /* a zoom file beside each medium or large print, to zoom into in Prints (off: develops faster) */
     FS_COUNT
 };
 #define FOS_SCR_STEPS 6

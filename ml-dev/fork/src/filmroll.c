@@ -101,6 +101,7 @@ static CONFIG_INT("filmroll.logdir",    roll_folder,      0);
 static CONFIG_INT("filmroll.needwind",  need_wind,        0);
 static CONFIG_INT("filmroll.stamp",     date_stamp,       0);   /* the date in the corner of each print (M-Film 0.2) */
 static CONFIG_INT("filmroll.size",      print_size,       0);   /* FOS_SIZE_*: the darkroom's prints (M-Film 0.2); small, as before */
+static CONFIG_INT("filmroll.zoom",      print_zoom,       0);   /* a zoom file beside each bigger print; off, faster */
 
 static char log_path[64];
 
@@ -1206,6 +1207,7 @@ static int *setting_var(int s)
         case FS_SCR_BRIGHT: return &scr_bright;
         case FS_STAMP:      return &date_stamp;
         case FS_SIZE:       return &print_size;
+        case FS_ZOOM:       return &print_zoom;
     }
     return 0;
 }

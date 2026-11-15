@@ -32,6 +32,7 @@ MODULE_CONFIGS_START()
     MODULE_CONFIG(need_wind)
     MODULE_CONFIG(date_stamp)
     MODULE_CONFIG(print_size)
+    MODULE_CONFIG(print_zoom)
 MODULE_CONFIGS_END()
 
 /* The built-in film OS kept these settings in Magic Lantern's own magic.cfg (config.c). The first
