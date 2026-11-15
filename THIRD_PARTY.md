@@ -29,7 +29,7 @@ made which table.
 
 **How they reach M-Film, and what was changed.** G'MIC has the tables built in, compressed. Film-Luts is an
 export of G'MIC's tables as `.cube` files, 13 points a side. M-Film's build resamples each one to 33 points a
-side over Cineon code and gives its input the plain sRGB curve, as before upstream's #125 (`ml-dev/films/lut.py`,
+side over Cineon code and gives its input the tone curve of a finished photo (`ml-dev/films/lut.py`,
 `ml-dev/filmos/tools/genfilms.py`, `ml-dev/filmos/tools/gentables.py`).
 
 **Which files.** The tables made that way: `ML/DARKROOM/LOOKnn.LUT` on the card for those 59 film stocks, and the

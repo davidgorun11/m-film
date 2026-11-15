@@ -3,7 +3,7 @@
 The same RAW from a Canon EOS M, developed by M-Film with every film it knows (half resolution here,
 downsized for the page). For 59 of them the colour is a film emulation table by [Pat David](https://patdavid.net)
 ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), through G'MIC and [Film-Luts](https://github.com/YahiaAngelo/Film-Luts)): a look made by eye,
-not a measurement of the film; for the 4 cinema print films, Juan Melara's tables; M-Film's own model otherwise; grain, halation and softness are modelled per film.
+not a measurement of the film; M-Film's own model otherwise; grain, halation and softness are modelled per film.
 
 [← back](README.md) · [ภาษาไทย](README.th.md)
 
