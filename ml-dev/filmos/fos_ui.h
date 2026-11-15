@@ -93,7 +93,6 @@ void ui_icon(int kind, int cx, int cy, fcol c, int alpha);
 
 /* the aperture over the whole screen: 0 = closed, 4096 = gone; the
  * opening shows what is already on the canvas */
-void ui_iris(int open, int angle);
 
 /* a lens aperture inside a barrel of radius R px (same blades, smaller) */
 void ui_aperture(int cx, int cy, int R, int open, int angle);
