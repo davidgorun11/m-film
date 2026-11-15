@@ -655,6 +655,20 @@ static int osd_black()
     for (int w = 0; DISPLAY_IS_ON && ml_refresh_count == n0 && w < 30; w++) msleep(10);
     return 1;
 }
+
+/* sleep, but keep the black on the panel: Canon lights the screen and repaints the layer whenever it likes
+ * while its playback comes up, and a refresh only runs while the screen is on */
+static void wait_black(int ms)
+{
+    for (int t = 0; t < ms; t += 10)
+    {
+        ml_refresh_full = 1;
+        ml_refresh_display_needed = 1;
+        msleep(10);
+    }
+}
+#else
+#define wait_black msleep
 #endif
 
 /* Take the display from Canon's GUI the same way the ML menu does:
@@ -676,7 +690,7 @@ static void film_ui_open()
     osd_black();                /* before Canon's playback comes up under us with its last picture */
 #endif
     SetGUIRequestMode(GUIMODE_ML_MENU);
-    msleep(200);
+    wait_black(200);
     /* With the viewfinder ML's menu mode is Canon's playback (GUIMODE_ML_MENU), which lights the back screen
      * a moment later: wait for it (the film OS leaves at once on a dark screen, fos_port_abort) */
     if (!lv && !DISPLAY_IS_ON)
@@ -685,7 +699,7 @@ static void film_ui_open()
         for (int i = 0; i < 200 && !DISPLAY_IS_ON; i++)
         {
             if (i == 50) display_on();
-            msleep(10);
+            wait_black(10);
         }
         dbg("film os: viewfinder: the screen %s after %d ms", DISPLAY_IS_ON ? "on" : "still off", get_ms_clock() - t0);
     }
