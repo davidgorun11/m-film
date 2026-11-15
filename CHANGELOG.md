@@ -17,7 +17,7 @@ From the original M-Film:
 - **The four cinema print films have left the shelf** (#126): Kodak Vision 2383 and 2393, Fujifilm Eterna
   3510 and 3513. Their tables came with no licence and were made for a film scan, not a photo. A roll already
   shot on one stays on the card and is not developed as another film. If one is loaded, rewind it first.
-- **Grain of Portra 400 NC/VC/UC and Pro 400H** is again the one their speed gives, as in the original.
+- **Grain of Portra 400, Portra 400 NC/VC/UC and Pro 400H** is the original's again.
 - **Five films' lines on the shelf** say what they are: CineStill 400T is M-Film's own look, the two infrared
   films are impressions (#149).
 - The Film-Luts tables are fetched at one fixed commit and each is checked before it is baked (#155).
