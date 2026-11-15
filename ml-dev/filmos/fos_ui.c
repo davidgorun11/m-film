@@ -32,9 +32,7 @@ static int go_shown;                        /* the screen gone to has reached th
 static int quit;
 static int boot_then_leave;
 
-/* opening: the shutter closes over LiveView, then opens on us; leaving is a cut, no animation */
-static int enter_t;
-#define ENTER_LEN 420
+/* opening and leaving are cuts, no shutter animation (the user, 2026-11-15) */
 
 /* the toast */
 static char toast_msg[80];
@@ -477,13 +475,6 @@ static void blades(int cx8, int cy8, int r, int angle, int reach, int shade0)
     }
 }
 
-void ui_iris(int open, int angle)
-{
-    if (open >= 4096) return;
-    /* opening radius: 0 .. a bit past the corners */
-    blades(360 * 256, 240 * 256, (int) ((int64_t) 450 * open / 4096), angle, 1400, 20);
-}
-
 void ui_aperture(int cx, int cy, int R, int open, int angle)
 {
     struct fos_canvas save = *cv;
@@ -583,7 +574,7 @@ void ui_go(int to, int arg, int how)
 
 int ui_settled()
 {
-    return go_shown && !(tr_len && tr_t < tr_len) && enter_t >= ENTER_LEN;
+    return go_shown && !(tr_len && tr_t < tr_len);
 }
 
 int ui_from()
@@ -754,17 +745,16 @@ void fos_ui_run(int open)
     toast_t = TOAST_LEN;
     screen = SCR_NONE;
     screen_from = SCR_NONE;
-    enter_t = 0;
 
-    /* what is under the shutter while it closes: LiveView */
-    memset(buf_cv, IX_CLEAR, FOS_W * FOS_H);
+    /* black, not see-through, until the first screen is drawn: Canon's playback picture is under us */
+    memset(buf_cv, fos_ix(FC(RAMP_GRAY, 0)), FOS_W * FOS_H);
     ui_clobbered = 1;
     cv_on_screen = 0;
     fos_port_palette();
 
     boot_then_leave = open == FOS_OPEN_BOOT_LV;
     if (open == FOS_OPEN_BOOT || open == FOS_OPEN_BOOT_LV)
-        screen = SCR_BOOT, enter_t = ENTER_LEN;
+        screen = SCR_BOOT;
     else
     {
         switch (open)
@@ -806,7 +796,7 @@ void fos_ui_run(int open)
                 continue;
             }
             if (is_repeating(k)) { held_key = k; held_since = now; held_last = now; }
-            if (quit || enter_t < ENTER_LEN) continue;
+            if (quit) continue;
             screen_key(k);
         }
         /* a release that never came must not scroll forever */
@@ -841,31 +831,6 @@ void fos_ui_run(int open)
         int in_tr = tr_len && tr_t < tr_len;
         int t_draw = fos_port_ms();
         if (quit) break;
-        if (enter_t < ENTER_LEN)
-        {
-            /* the shutter: closes over LiveView, opens on us */
-            int t = enter_t += dt;
-            if (screen != SCR_BOOT) screen_draw();
-            int open_k;
-            int ang = (int) (t * 9);
-            {
-                float f = clampf((float) t / ENTER_LEN, 0, 1);
-                if (f < 0.4f)
-                {
-                    memset(buf_cv, IX_CLEAR, FOS_W * FOS_H);
-                    open_k = (int) ((1 - ease_out(f / 0.4f)) * 4096);
-                }
-                else open_k = (int) (ease_out((f - 0.4f) / 0.6f) * 4096);
-            }
-            ui_iris(open_k, ang);
-            ui_clobbered = 1;
-            fos_port_present(cv->px, FOS_W, 0, FOS_H);
-            cv_on_screen = 1;
-            if (!opened) { opened = 1; stat.open_ms = fos_port_ms() - t_open; }
-            dmg_y0 = FOS_H; dmg_y1 = 0;
-            fos_port_sleep(frame_rest(now));
-            continue;
-        }
 
         int t_present;
         if (in_tr)
