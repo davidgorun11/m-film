@@ -762,8 +762,9 @@ void fos_ui_run(int open)
     screen_from = SCR_NONE;
     enter_t = 0;
 
-    /* what is under the shutter while it closes: LiveView */
-    memset(buf_cv, IX_CLEAR, FOS_W * FOS_H);
+    /* what is under the shutter while it closes: black. LiveView is off by now, and see-through showed
+     * Canon's playback picture under it (the user, 2026-11-15) */
+    memset(buf_cv, fos_ix(FC(RAMP_GRAY, 0)), FOS_W * FOS_H);
     ui_clobbered = 1;
     fos_port_palette();
 
@@ -856,7 +857,7 @@ void fos_ui_run(int open)
                 float f = clampf((float) t / ENTER_LEN, 0, 1);
                 if (f < 0.4f)
                 {
-                    memset(buf_cv, IX_CLEAR, FOS_W * FOS_H);
+                    memset(buf_cv, fos_ix(FC(RAMP_GRAY, 0)), FOS_W * FOS_H);
                     open_k = (int) ((1 - ease_out(f / 0.4f)) * 4096);
                 }
                 else open_k = (int) (ease_out((f - 0.4f) / 0.6f) * 4096);

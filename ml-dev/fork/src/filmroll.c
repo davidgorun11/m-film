@@ -640,6 +640,23 @@ static void palette_canon()
 }
 #endif
 
+#ifdef FEATURE_VRAM_RGBA
+/* the whole screen opaque black, through table entry 255 (ours alone; palette_canon empties it), and wait
+ * until it is on the panel: Canon's playback, which the film OS runs in, shows its last picture otherwise */
+static int osd_black()
+{
+    uint8_t *vram = bmp_vram();
+    if (!vram) return 0;
+    bmp_rgb_lut()[255] = 0xFF000000;
+    for (int y = 0; y < 480; y++) memset(vram + y * BMPPITCH, 255, 720);
+    uint32_t n0 = ml_refresh_count;
+    ml_refresh_full = 1;
+    ml_refresh_display_needed = 1;
+    for (int w = 0; DISPLAY_IS_ON && ml_refresh_count == n0 && w < 30; w++) msleep(10);
+    return 1;
+}
+#endif
+
 /* Take the display from Canon's GUI the same way the ML menu does:
  * switch Canon to the ML menu GUI mode (LiveView stops drawing its
  * overlays and stops handling keys), stop Canon from flipping its own
@@ -655,6 +672,9 @@ static void film_ui_open()
     }
     NotifyBoxHide();
     if (lv) bmp_off();
+#ifdef FEATURE_VRAM_RGBA
+    osd_black();                /* before Canon's playback comes up under us with its last picture */
+#endif
     SetGUIRequestMode(GUIMODE_ML_MENU);
     msleep(200);
     /* With the viewfinder ML's menu mode is Canon's playback (GUIMODE_ML_MENU), which lights the back screen
@@ -671,7 +691,11 @@ static void film_ui_open()
     }
     canon_gui_disable_front_buffer();
     CancelDateTimer();
+#ifdef FEATURE_VRAM_RGBA
+    osd_black();                /* not clear: the playback picture would show until the first frame */
+#else
     clrscr();
+#endif
     bmp_on();
 #ifdef FEATURE_VRAM_RGBA
     ml_refresh_full = 1;
@@ -701,22 +725,12 @@ static void film_ui_close()
      * and that is what stayed on the screen when the shutter took us out of a menu */
 #ifdef FEATURE_VRAM_RGBA
     /* Under the film OS Canon's playback still holds the last picture: blanking our layer first showed it for
-     * a moment before the screen went dark (the user, 2026-11-15). Cover the screen in opaque black, leave
-     * Canon's mode while it covers, and only then blank. Entry 255 is ours alone; palette_canon empties it. */
+     * a moment before the screen went dark (the user, 2026-11-15). Cover it, leave Canon's mode, then blank. */
+    if (osd_black())
     {
-        uint8_t *vram = bmp_vram();
-        if (vram)
-        {
-            bmp_rgb_lut()[255] = 0xFF000000;
-            for (int y = 0; y < 480; y++) memset(vram + y * BMPPITCH, 255, 720);
-            uint32_t n0 = ml_refresh_count;
-            ml_refresh_full = 1;
-            ml_refresh_display_needed = 1;
-            for (int w = 0; ml_refresh_count == n0 && w < 30; w++) msleep(10);
-            SetGUIRequestMode(0);
-            for (int w = 0; CURRENT_GUI_MODE == GUIMODE_ML_MENU && w < 50; w++) msleep(10);
-            msleep(100);
-        }
+        SetGUIRequestMode(0);
+        for (int w = 0; CURRENT_GUI_MODE == GUIMODE_ML_MENU && w < 50; w++) msleep(10);
+        msleep(100);
     }
 #endif
     clrscr();
