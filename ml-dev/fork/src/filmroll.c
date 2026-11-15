@@ -568,8 +568,10 @@ static int lut_have_saved = 0;
 
 static void palette_ours()
 {
-    if (!DISPLAY_IS_ON) return;
+    /* the table is only memory: load it with the screen off too (LiveView going off turns it off for a moment,
+     * and a palette skipped then left M-Film black until a key, 2026-11-15) */
     uint32_t *lut = bmp_rgb_lut();
+    if (!lut) return;
     if (!lut_have_saved)
     {
         memcpy(lut_saved, lut, sizeof(lut_saved));      /* before we write 1..254 */
@@ -989,8 +991,13 @@ void fos_port_present(const uint8_t *rows, int pitch, int y0, int y1)
 #else
     uint8_t *vram = bmp_vram_real();
 #endif
-    if (!vram || !DISPLAY_IS_ON || ml_shutdown_requested)       /* once the camera is switching off, nothing more goes on the screen */
+    if (!vram || ml_shutdown_requested)       /* once the camera is switching off, nothing more goes on the screen */
         return;
+#ifndef FEATURE_VRAM_RGBA
+    if (!DISPLAY_IS_ON) return;
+#endif
+    /* DIGIC 7: the frame goes into ML's buffer with the screen off too, and ML's refresh shows it once the screen is
+     * on. Dropped, the only frame M-Film draws on opening from LiveView was lost: black until a key (2026-11-15) */
 #ifdef FEATURE_VRAM_RGBA
     /* ML reads this buffer to make the screen: wait for it to finish (at most 80 ms), so a frame
      * never lands in the middle of a refresh, and the film OS can't outrun the screen */
