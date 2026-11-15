@@ -49,12 +49,13 @@ Remove
 
 Prints
   The darkroom develops Small (the screen's 720 x 480), Medium or Large. On this camera one frame
-  takes about 10-12 s in Small, 21-25 s in Medium and 36-39 s in Large. LiveView pauses while it
-  develops.
+  takes about 10-12 s in Small and 21-25 s in Large. LiveView is off while it develops.
+  Zoom in Prints (System) keeps a file to look closer at Medium and Large prints: about 3 s more a
+  frame and 6.5 MB on the card, so it is off by default.
 
 Buttons, the same on every screen
   MENU   back (on the home screen: to the camera)
-  PLAY   Prints
+  PLAY   Prints (on the shooting screen: Canon's playback, unless "PLAY shows prints only" is on)
   Trash  to the camera (in the Darkroom list: deletes the marked rolls)
   INFO   the screen's second action, shown at the bottom
   SET    select

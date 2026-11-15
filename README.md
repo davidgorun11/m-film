@@ -34,14 +34,21 @@ To remove M-Film, format the card: a card without Magic Lantern starts the camer
 If the camera doesn't start, take the battery out and remove the card. Without the card it starts as usual.
 `M-FILM-README.txt` in the zip has the details.
 
+## What's new
+
+**0.2.1-6d2.2** (coming): a roll develops a third faster (both processor cores, 180 s → 117 s for 5 Large
+frames), M-Film opens and closes at once with no flash of Canon's last photo, and *Zoom in Prints* and the
+boot animation are settings. All changes: [CHANGELOG.md](CHANGELOG.md).
+
 ## What this fork adds
 
 | | |
 |---|---|
 | **Runs on the 6D Mark II** | Magic Lantern changes for the 6D Mark II's DIGIC 7 and screen. The film OS is built as a module (`filmos.mo`) for its Cortex-A9 processor. |
-| **Faster developing** | One frame takes about 10 s in Small, 21–25 s in Medium and 36–39 s in Large. Before, Small took 26–29 s and Large 75–79 s. RAW reading went from 11.5 s to 1.6 s. LiveView pauses while a roll develops. |
+| **Faster developing** | One frame takes about 10 s in Small and 21–25 s in Large. Before, Small took 26–29 s and Large 75–79 s. RAW reading went from 11.5 s to 1.6 s, the big prints use both of the DIGIC 7's cores, and LiveView is off while a roll develops. |
 | **Less memory at power on** | 380 KB instead of 549 KB, because the film OS loads as a module after start-up. |
-| **Print sizes and date stamp** | Small, Medium and Large prints, zoom in Prints, and a date stamp. These are ported from M-Film 0.2. |
+| **Print sizes and date stamp** | Small, Medium and Large prints, zoom in Prints (a setting, off by default), and a date stamp. These are ported from M-Film 0.2. |
+| **Quick to open and close** | No shutter animation, and the screen stays black in between: Canon's last photo doesn't flash. The boot animation is a setting, off by default. |
 | **Without LiveView** | M-Film opens with the viewfinder too, not only in LiveView. |
 | **No readout over LiveView** | While you shoot you see Canon's own screen. The original's HUD and top plate are off on this camera: Canon's screen can't be kept from drawing over them on the 6D Mark II, and the two flickered over each other. The Viewfinder page and the wind lever went with them. |
 | **One button scheme** | MENU goes back, PLAY opens Prints and Trash returns to the camera. INFO is the screen's second action and SET selects. This is the same on every screen. |
@@ -55,7 +62,7 @@ The technical notes are in [ml-dev/fork/ml-patches/6D2.111](ml-dev/fork/ml-patch
 |---|---|
 | Trash | opens M-Film; inside it, back to the camera (in the Darkroom list it deletes the marked rolls) |
 | MENU | back |
-| PLAY | Prints |
+| PLAY | Prints (on the shooting screen: Canon's playback, unless *PLAY shows prints only* is on) |
 | INFO | the screen's second action, shown at the bottom |
 | SET | select, confirm |
 | Half-press, LV | back to shooting |

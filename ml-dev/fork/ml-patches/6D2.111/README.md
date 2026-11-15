@@ -28,10 +28,10 @@ The card files end up in `ml-dev/out/fork-6D2.111/`. The release zip is those fi
   - RAW is read through a 256 KB buffer with cache invalidation: 11.5 s down to about 1.6 s.
   - Big prints store portrait frames transposed.
   - LiveView pauses while a roll develops.
-  - On the camera, frames develop in Small about 10–12 s, Medium 21–25 s, Large 36–39 s.
+  - On the camera, frames develop in Small about 10–12 s, Large 21–25 s (both cores; 36–39 s in 0.2.1-6d2.1).
 - **Memory at boot.** The film OS is a module, so boot memory drops from 549 KB to 380 KB.
 - **From 0.2.0.**
-  - Three print sizes (Small, Medium, Large) with zoom in Prints.
+  - Three print sizes (Small, Medium, Large) with zoom in Prints (a setting, off by default).
   - A date stamp.
   - The darkroom engine (`fos_dev.c`) itself.
 - **Without LiveView.** M-Film opens without LiveView (PLAY mode).
