@@ -14,16 +14,16 @@ From the original M-Film:
   they now get that contrast instead of the plain sRGB curve.
 - **A highlight is no longer tinted by its own glow, and every film's glow is fainter** (#154). A bright wall
   or a white sky kept a red cast from the halation; now the glow falls only on what lies beside a highlight.
-- **The four cinema print films have left the shelf** (#126): Kodak Vision 2383 and 2393, Fujifilm Eterna
-  3510 and 3513. Their tables came with no licence and were made for a film scan, not a photo. A roll already
-  shot on one stays on the card and is not developed as another film. If one is loaded, rewind it first.
+- **The four cinema print films stay on the shelf** (Kodak Vision 2383 and 2393, Fujifilm Eterna 3510 and
+  3513), with the Cineon input their tables were made for (#107). The original took them off (#126). Their
+  glow is fainter, like every other film's.
 - **Grain of Portra 400, Portra 400 NC/VC/UC and Pro 400H** is the original's again.
 - **Five films' lines on the shelf** say what they are: CineStill 400T is M-Film's own look, the two infrared
   films are impressions (#149).
 - The Film-Luts tables are fetched at one fixed commit and each is checked before it is baked (#155).
 
-With these, every film's print from this fork is pixel for pixel the original's, Small and Large, checked on
-all 68 films with the same RAW.
+With these, every film the original has prints pixel for pixel as in the original, Small and Large, checked
+on all 68 with the same RAW.
 
 ## 0.2.1-6d2.2 (2026-11-15)
 

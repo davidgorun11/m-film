@@ -10,16 +10,14 @@ brand, name, box speed, and kind:
 
   neg     colour negative, C-41        slide   colour reversal, E-6 / K-14
   xpro    cross-processed              bw      black and white
-
-The collection's four cinema print stocks (Kodak 2383 and 2393, Fuji 3510
-and 3513) are not here any more: their tables have no stated licence, they
-expect a log film scan and not a photo, and nobody loads a print film in a
-camera, so they could never be measured against the real thing (#110, #126).
+  print   motion-picture print stock (the look of a cinema print)
 
 films.py turns them into lab films: the colour from the LUT, the rest
 (scanner exposure, halation, grain, softness) from the kind and speed.
 The LUTs take ordinary finished photos as input, so they are given a
-finished photo's tone curve and not the plain sRGB one (lut.py, "photo").
+finished photo's tone curve and not the plain sRGB one (lut.py, "photo");
+the print ones take log film scans (Cineon, #107): this fork keeps them on
+the shelf, the original took them off (#126).
 """
 
 REPO = "https://github.com/YahiaAngelo/Film-Luts"
@@ -97,6 +95,11 @@ STOCKS = [
     ("retro100", "bw/rollei_retro_100_tonal", "Rollei", "Retro 100 Tonal", 100, "bw"),
     ("ortho25", "bw/rollei_ortho_25", "Rollei", "Ortho 25", 25, "bw"),
     ("ir400", "bw/rollei_ir_400", "Rollei", "Infrared 400", 400, "bw"),
+    # cinema print stocks
+    ("kodak2383", "print/kodak_2383_constlmap", "Kodak", "Vision 2383", 200, "print"),
+    ("kodak2393", "print/kodak_2393_constlmap", "Kodak", "Vision 2393", 200, "print"),
+    ("fuji3510", "print/fuji_3510_constlmap", "Fujifilm", "Eterna 3510", 200, "print"),
+    ("fuji3513", "print/fuji_3513_constlmap", "Fujifilm", "Eterna 3513", 200, "print"),
 ]
 
 
@@ -107,6 +110,8 @@ def grain_for(iso, kind):
     amount = 0.006 + 0.0045 * steps
     if kind == "slide":
         amount *= 0.7
+    if kind == "print":
+        amount = 0.008
     return round(amount, 4), round(0.7 + 0.11 * steps, 2)
 
 
@@ -125,7 +130,8 @@ def film(key, path, brand, name, iso, kind):
     f = dict(
         name=f"{brand} {name}", iso=iso, kind=kind, balance=5500,
         # "photo": the tables were made by eye on finished photos, so they are fed one (lut.py, #125)
-        lut=f"{DIR}/{path}.cube", lut_space="photo",
+        # the print tables are Juan Melara's, made for log film scans in Rec.709 (#107): Cineon, the scan's own encoding
+        lut=f"{DIR}/{path}.cube", lut_space="cineon" if kind == "print" else "photo",
         # the film's own colour when the LUT isn't there: a plain print
         ev=0.2 if kind == "neg" else 0.0, sat=1.0,
         contrast=(0.18, 0.18, 0.18), pivot=(0.0, 0.0, 0.0),
@@ -138,6 +144,9 @@ def film(key, path, brand, name, iso, kind):
     if kind == "bw":
         f.update(mono=(0.30, 0.59, 0.11), contrast=(0.19,), pivot=(0.0,), black=(0.03,), white=(0.96,),
                  halation=0.15)
+    if kind == "print":
+        # this fork keeps them (#107): the glow faint, as on every film since #154
+        f.update(halation=0.2, soft=0.5)
     f.update(GLOW.get(key, {}))
     return f
 
