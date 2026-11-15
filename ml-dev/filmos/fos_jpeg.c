@@ -64,42 +64,42 @@ static const uint8_t ac_vals[2][162] =
 
 /* ---------------------------------------------------------------- output */
 
+/* where the bits go: the file through buf (f), or memory only (f 0: full, it's not ok) */
+typedef struct fos_jpeg_out sink;
+
 struct jw
 {
-    void *f;
+    sink s;
     uint8_t buf[8192];
-    int n, ok;
-    uint32_t bits;
-    int nbits;
     uint16_t dc_code[2][12], ac_code[2][256];
     uint8_t dc_len[2][12], ac_len[2][256];
     int32_t recip[2][64];       /* 65536 / (8 q), zigzag order */
     uint8_t q[2][64];           /* zigzag order, as written */
 };
 
-static void flush(struct jw *w)
+static void flush(sink *w)
 {
-    if (w->n && fos_port_write(w->f, w->buf, w->n) != w->n) w->ok = 0;
+    if (w->n && (!w->f || fos_port_write(w->f, w->buf, w->n) != w->n)) w->ok = 0;
     w->n = 0;
 }
 
-static void put8(struct jw *w, int b)
+static void put8(sink *w, int b)
 {
-    if (w->n == (int) sizeof(w->buf)) flush(w);
+    if (w->n == w->cap) flush(w);
     w->buf[w->n++] = (uint8_t) b;
 }
 
-static void put16(struct jw *w, int v) { put8(w, v >> 8); put8(w, v); }
+static void put16(sink *w, int v) { put8(w, v >> 8); put8(w, v); }
 
 /* the bytes straight into the buffer, room for a call's few made first: a
  * call to put8 for each byte was a good part of the JPEG's time */
-static void put_bits(struct jw *w, uint32_t code, int len)
+static void put_bits(sink *w, uint32_t code, int len)
 {
     uint32_t bits = w->bits << len | (code & ((1u << len) - 1));
     int nbits = w->nbits + len;
     if (nbits >= 8)
     {
-        if (w->n > (int) sizeof(w->buf) - 8) flush(w);     /* at most 23 bits: two bytes, stuffed four */
+        if (w->n > w->cap - 8) flush(w);     /* at most 23 bits: two bytes, stuffed four */
         uint8_t *o = w->buf + w->n;
         do
         {
@@ -183,23 +183,23 @@ static void quant_block(const struct jw *w, int32_t *d, int t, int16_t *q)
 }
 
 /* a block's coefficients to the file */
-static void block(struct jw *w, const int16_t *q, int t, int *dc_prev)
+static void block(const struct jw *h, sink *w, const int16_t *q, int t, int *dc_prev)
 {
     int diff = q[0] - *dc_prev, n = bit_size(diff);
     *dc_prev = q[0];
-    put_bits(w, w->dc_code[t][n], w->dc_len[t][n]);
+    put_bits(w, h->dc_code[t][n], h->dc_len[t][n]);
     if (n) put_bits(w, (uint32_t) (diff < 0 ? diff - 1 : diff), n);
     int run = 0;
     for (int i = 1; i < 64; i++)
     {
         if (!q[i]) { run++; continue; }
-        while (run > 15) { put_bits(w, w->ac_code[t][0xF0], w->ac_len[t][0xF0]); run -= 16; }
+        while (run > 15) { put_bits(w, h->ac_code[t][0xF0], h->ac_len[t][0xF0]); run -= 16; }
         int s = bit_size(q[i]), sym = run << 4 | s;
-        put_bits(w, w->ac_code[t][sym], w->ac_len[t][sym]);
+        put_bits(w, h->ac_code[t][sym], h->ac_len[t][sym]);
         put_bits(w, (uint32_t) (q[i] < 0 ? q[i] - 1 : q[i]), s);
         run = 0;
     }
-    if (run) put_bits(w, w->ac_code[t][0], w->ac_len[t][0]);
+    if (run) put_bits(w, h->ac_code[t][0], h->ac_len[t][0]);
 }
 
 /* ---------------------------------------------------------------- EXIF */
@@ -300,6 +300,7 @@ struct fos_jpeg
     struct jw w;
     int width, height, y;       /* y: rows written so far */
     int dc[3];
+    int m, ri, total;           /* 16 x 16 blocks a row, a restart every ri of them, in all */
 };
 
 struct fos_jpeg *fos_jpeg_begin(const char *path, int width, int height, int quality, const struct fos_jpeg_meta *meta)
@@ -310,7 +311,17 @@ struct fos_jpeg *fos_jpeg_begin(const char *path, int width, int height, int qua
     struct jw *w = &j->w;
     j->width = width;
     j->height = height;
-    w->ok = 1;
+    /* a restart every ri blocks, ri a part of a row's m: a row is then pieces the two
+     * cores can write each on its own; 8 and up, the markers cost under half a percent */
+    j->m = (width + 15) / 16;
+    j->total = j->m * ((height + 15) / 16);
+    j->ri = j->m;
+    for (int d = 8; d < j->m; d++) if (j->m % d == 0) { j->ri = d; break; }
+    for (int d = 2; j->ri == j->m && d < j->m; d++) if (j->m % d == 0) j->ri = d;
+    sink *s = &w->s;
+    s->buf = w->buf;
+    s->cap = sizeof(w->buf);
+    s->ok = 1;
     int scale = quality < 50 ? 5000 / quality : 200 - quality * 2;
     for (int t = 0; t < 2; t++)
     {
@@ -324,18 +335,18 @@ struct fos_jpeg *fos_jpeg_begin(const char *path, int width, int height, int qua
         huff_codes(dc_bits[t], dc_vals, w->dc_code[t], w->dc_len[t]);
         huff_codes(ac_bits[t], ac_vals[t], w->ac_code[t], w->ac_len[t]);
     }
-    w->f = fos_port_open(path, 1);
-    if (!w->f) { fos_port_free(j); return 0; }
+    s->f = fos_port_open(path, 1);
+    if (!s->f) { fos_port_free(j); return 0; }
 
-    put16(w, 0xFFD8);
+    put16(s, 0xFFD8);
     /* JFIF only when there's no EXIF: with EXIF, EXIF comes right after SOI, as
      * camera files have it. A JFIF ahead of it and the 6D Mark II's playback
      * won't open the file at all (2026-11-14, DCIM/101TEST_ on the camera) */
     if (!meta)
     {
-        put16(w, 0xFFE0); put16(w, 16);
+        put16(s, 0xFFE0); put16(s, 16);
         static const uint8_t jfif[14] = { 'J', 'F', 'I', 'F', 0, 1, 1, 0, 0, 1, 0, 1, 0, 0 };
-        for (int i = 0; i < 14; i++) put8(w, jfif[i]);
+        for (int i = 0; i < 14; i++) put8(s, jfif[i]);
     }
     /* EXIF */
     if (meta)
@@ -343,10 +354,10 @@ struct fos_jpeg *fos_jpeg_begin(const char *path, int width, int height, int qua
         uint8_t ex[512];
         memset(ex, 0, sizeof(ex));
         int n = exif(ex, meta);
-        put16(w, 0xFFE1); put16(w, n + 8);
+        put16(s, 0xFFE1); put16(s, n + 8);
         static const uint8_t tag[6] = { 'E', 'x', 'i', 'f', 0, 0 };
-        for (int i = 0; i < 6; i++) put8(w, tag[i]);
-        for (int i = 0; i < n; i++) put8(w, ex[i]);
+        for (int i = 0; i < 6; i++) put8(s, tag[i]);
+        for (int i = 0; i < n; i++) put8(s, ex[i]);
         /* XMP: the film as the caption and as keywords, where photo apps
          * (Lightroom, Photos, Bridge) look for them; EXIF's ImageDescription
          * above is the same caption for the ones that read only EXIF */
@@ -355,36 +366,37 @@ struct fos_jpeg *fos_jpeg_begin(const char *path, int width, int height, int qua
             static char x[1024];
             int k = xmp(x, sizeof(x), meta->desc);
             static const char ns[] = "http://ns.adobe.com/xap/1.0/";
-            put16(w, 0xFFE1); put16(w, 2 + (int) sizeof(ns) + k);
-            for (int i = 0; i < (int) sizeof(ns); i++) put8(w, (uint8_t) ns[i]);    /* with its 0 */
-            for (int i = 0; i < k; i++) put8(w, (uint8_t) x[i]);
+            put16(s, 0xFFE1); put16(s, 2 + (int) sizeof(ns) + k);
+            for (int i = 0; i < (int) sizeof(ns); i++) put8(s, (uint8_t) ns[i]);    /* with its 0 */
+            for (int i = 0; i < k; i++) put8(s, (uint8_t) x[i]);
         }
     }
     /* quantisation, frame, Huffman tables */
     for (int t = 0; t < 2; t++)
     {
-        put16(w, 0xFFDB); put16(w, 67); put8(w, t);
-        for (int i = 0; i < 64; i++) put8(w, w->q[t][i]);
+        put16(s, 0xFFDB); put16(s, 67); put8(s, t);
+        for (int i = 0; i < 64; i++) put8(s, w->q[t][i]);
     }
-    put16(w, 0xFFC0); put16(w, 17); put8(w, 8); put16(w, height); put16(w, width); put8(w, 3);
-    put8(w, 1); put8(w, 0x22); put8(w, 0);
-    put8(w, 2); put8(w, 0x11); put8(w, 1);
-    put8(w, 3); put8(w, 0x11); put8(w, 1);
+    put16(s, 0xFFC0); put16(s, 17); put8(s, 8); put16(s, height); put16(s, width); put8(s, 3);
+    put8(s, 1); put8(s, 0x22); put8(s, 0);
+    put8(s, 2); put8(s, 0x11); put8(s, 1);
+    put8(s, 3); put8(s, 0x11); put8(s, 1);
     for (int t = 0; t < 2; t++)
     {
         int nd = 0, na = 0;
         for (int i = 0; i < 16; i++) { nd += dc_bits[t][i]; na += ac_bits[t][i]; }
-        put16(w, 0xFFC4); put16(w, 2 + 17 + nd + 17 + na);
-        put8(w, t);
-        for (int i = 0; i < 16; i++) put8(w, dc_bits[t][i]);
-        for (int i = 0; i < nd; i++) put8(w, dc_vals[i]);
-        put8(w, 0x10 | t);
-        for (int i = 0; i < 16; i++) put8(w, ac_bits[t][i]);
-        for (int i = 0; i < na; i++) put8(w, ac_vals[t][i]);
+        put16(s, 0xFFC4); put16(s, 2 + 17 + nd + 17 + na);
+        put8(s, t);
+        for (int i = 0; i < 16; i++) put8(s, dc_bits[t][i]);
+        for (int i = 0; i < nd; i++) put8(s, dc_vals[i]);
+        put8(s, 0x10 | t);
+        for (int i = 0; i < 16; i++) put8(s, ac_bits[t][i]);
+        for (int i = 0; i < na; i++) put8(s, ac_vals[t][i]);
     }
-    put16(w, 0xFFDA); put16(w, 12); put8(w, 3);
-    put8(w, 1); put8(w, 0x00); put8(w, 2); put8(w, 0x11); put8(w, 3); put8(w, 0x11);
-    put8(w, 0); put8(w, 63); put8(w, 0);
+    put16(s, 0xFFDD); put16(s, 4); put16(s, j->ri);
+    put16(s, 0xFFDA); put16(s, 12); put8(s, 3);
+    put8(s, 1); put8(s, 0x00); put8(s, 2); put8(s, 0x11); put8(s, 3); put8(s, 0x11);
+    put8(s, 0); put8(s, 63); put8(s, 0);
     return j;
 }
 
@@ -426,25 +438,65 @@ static void prep_mcu(const struct fos_jpeg *j, const uint8_t *rgb, int stride, i
 
 int fos_jpeg_mcus(const struct fos_jpeg *j)
 {
-    return (j->width + 15) / 16;
+    return j->m;
 }
 
-void fos_jpeg_prep(const struct fos_jpeg *j, const uint8_t *rgb, int stride, int rows, int m0, int m1, int16_t *coef)
+/* blocks k0 .. k1 - 1 of the picture (counted along its rows), their coefficients from c:
+ * after every ri of them the bits to a byte, a restart marker, the DC from 0 */
+static void emit(const struct fos_jpeg *j, sink *s, const int16_t *c, int k0, int k1, int *dc)
 {
-    for (int m = m0; m < m1; m++)
-        prep_mcu(j, rgb, stride, rows, m * 16, 0, coef + FOS_JPEG_MCU * m);
+    const struct jw *h = &j->w;
+    for (int k = k0; k < k1; k++, c += FOS_JPEG_MCU)
+    {
+        for (int b = 0; b < 4; b++) block(h, s, c + 64 * b, 0, &dc[0]);
+        block(h, s, c + 256, 1, &dc[1]);
+        block(h, s, c + 320, 1, &dc[2]);
+        if ((k + 1) % j->ri == 0 && k + 1 < j->total)
+        {
+            if (s->nbits) put_bits(s, 0x7F, 8 - s->nbits);     /* pad with ones */
+            put8(s, 0xFF);
+            put8(s, 0xD0 + ((k + 1) / j->ri - 1) % 8);
+            dc[0] = dc[1] = dc[2] = 0;
+        }
+    }
 }
 
-static void emit_mcu(struct fos_jpeg *j, const int16_t *c)
+int fos_jpeg_split(const struct fos_jpeg *j)
 {
-    for (int b = 0; b < 4; b++) block(&j->w, c + 64 * b, 0, &j->dc[0]);
-    block(&j->w, c + 256, 1, &j->dc[1]);
-    block(&j->w, c + 320, 1, &j->dc[2]);
+    return j->ri < j->m ? j->m / j->ri / 2 * j->ri : 0;
 }
 
-void fos_jpeg_emit(struct fos_jpeg *j, const int16_t *coef, int rows)
+void fos_jpeg_part(const struct fos_jpeg *j, const uint8_t *rgb, int stride, int rows, int16_t *coef, struct fos_jpeg_out *o)
 {
-    for (int m = 0, n = fos_jpeg_mcus(j); m < n; m++) emit_mcu(j, coef + FOS_JPEG_MCU * m);
+    const int m0 = fos_jpeg_split(j), k0 = j->y / 16 * j->m + m0;
+    int dc[3] = { 0, 0, 0 };
+    for (int m = m0; m < j->m; m++) prep_mcu(j, rgb, stride, rows, m * 16, 0, coef + FOS_JPEG_MCU * m);
+    o->f = 0; o->n = 0; o->ok = 1; o->bits = 0; o->nbits = 0;
+    emit(j, o, coef + FOS_JPEG_MCU * m0, k0, k0 + j->m - m0, dc);
+}
+
+void fos_jpeg_main(struct fos_jpeg *j, const uint8_t *rgb, int stride, int rows)
+{
+    int16_t c[FOS_JPEG_MCU];
+    const int k0 = j->y / 16 * j->m;
+    for (int m = 0, n = fos_jpeg_split(j); m < n; m++)
+    {
+        prep_mcu(j, rgb, stride, rows, m * 16, 0, c);
+        emit(j, &j->w.s, c, k0 + m, k0 + m + 1, j->dc);
+    }
+}
+
+void fos_jpeg_join(struct fos_jpeg *j, const int16_t *coef, struct fos_jpeg_out *o, int rows)
+{
+    const int m0 = fos_jpeg_split(j), k0 = j->y / 16 * j->m + m0;
+    sink *s = &j->w.s;
+    if (o->ok)
+    {
+        for (int i = 0; i < o->n; i++) put8(s, o->buf[i]);
+        s->bits = o->bits;          /* left over only at the picture's end */
+        s->nbits = o->nbits;
+    }
+    else emit(j, s, coef + FOS_JPEG_MCU * m0, k0, k0 + j->m - m0, j->dc);
     j->y += rows;
 }
 
@@ -456,10 +508,11 @@ void fos_jpeg_rows(struct fos_jpeg *j, const uint8_t *rgb, int stride, int rows)
         /* a band of 16 at a time: its last rows stand in below the picture's bottom */
         const uint8_t *band = rgb + my * stride;
         int brows = rows - my < 16 ? rows - my : 16;
-        for (int mx = 0; mx < j->width; mx += 16)
+        const int k0 = (j->y + my) / 16 * j->m;
+        for (int m = 0; m < j->m; m++)
         {
-            prep_mcu(j, band, stride, brows, mx, 0, c);
-            emit_mcu(j, c);
+            prep_mcu(j, band, stride, brows, m * 16, 0, c);
+            emit(j, &j->w.s, c, k0 + m, k0 + m + 1, j->dc);
         }
     }
     j->y += rows;
@@ -468,7 +521,7 @@ void fos_jpeg_rows(struct fos_jpeg *j, const uint8_t *rgb, int stride, int rows)
 int fos_jpeg_end(struct fos_jpeg *j)
 {
     if (!j) return 0;
-    struct jw *w = &j->w;
+    sink *w = &j->w.s;
     if (w->nbits) put_bits(w, 0x7F, 8 - w->nbits);     /* pad with ones */
     put16(w, 0xFFD9);
     flush(w);

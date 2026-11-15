@@ -2985,8 +2985,8 @@ struct bwork
     struct fos_dev *volatile d;         /* the frame it works for */
     volatile int seq, done;
     int job, y0, n, row0;               /* job 1: finish rows y0 .. y0 + n - 1; 2: dither them; row0: the band's first */
-    int m0, m1;                         /* job 3: the JPEG's 16 x 16 blocks m0 .. m1 - 1 of the band (n rows) into coef */
-    int16_t *coef;                      /* a band's JPEG coefficients, FOS_JPEG_MCU a block */
+    int16_t *coef;                      /* job 3: the band's (n rows) JPEG part (fos_jpeg_part): its coefficients, */
+    struct fos_jpeg_out jout;           /* and its bits */
     unsigned bus[9];
     struct bscratch sc;
 };
@@ -3009,7 +3009,7 @@ static void bwork_run(void *arg)
         last = w->seq;
         struct fos_dev *d = w->d;
         const int bw = d->bw;
-        if (w->job == 3) fos_jpeg_prep(d->bjpeg, d->brgb, bw * 3, w->n, w->m0, w->m1, w->coef);
+        if (w->job == 3) fos_jpeg_part(d->bjpeg, d->brgb, bw * 3, w->n, w->coef, &w->jout);
         else for (int i = 0; i < w->n; i++)
         {
             int y = w->y0 + i, k = y - w->row0;
@@ -3058,6 +3058,9 @@ static void bwork_start(struct fos_dev *d)
     w->sc.bus = w->bus;
     /* the JPEG's coefficients for a band, when there is a JPEG: its blocks made on both cores */
     w->coef = d->bjpeg ? fos_port_alloc(fos_jpeg_mcus(d->bjpeg) * FOS_JPEG_MCU * 2) : 0;
+    /* its part's bits: some 5 KB a band at Large; more, and this core writes them from coef */
+    w->jout.cap = 64 * 1024;
+    w->jout.buf = d->bjpeg ? fos_port_alloc(w->jout.cap) : 0;
     w->d = d;
     d->bwork = w;
 }
@@ -3072,6 +3075,8 @@ static void bwork_stop(struct fos_dev *d)
     w->sc.t32 = 0;
     fos_port_free(w->coef);
     w->coef = 0;
+    fos_port_free(w->jout.buf);
+    w->jout.buf = 0;
     d->bwork = 0;
 }
 #endif
@@ -3104,16 +3109,14 @@ static void big_rows(struct fos_dev *d)
             big_finish(d, y0 + i, d->brgb + i * bw * 3, &sc);
         bwork_wait(w);
         u0 = FOS_US();
-        if (d->bjpeg && w->coef && !d->bzoom)
+        if (d->bjpeg && w->coef && w->jout.buf && !d->bzoom && fos_jpeg_split(d->bjpeg))
         {
-            /* the JPEG: the band's blocks made on both cores (colour, DCT, quantizing:
-             * two thirds of its work), then written here in order */
-            const int m = fos_jpeg_mcus(d->bjpeg), half = m / 2;
-            w->m0 = half; w->m1 = m;
+            /* the JPEG: the band's row in two pieces between restart markers, each
+             * core makes one whole (colour, DCT, quantizing, the bits), then here in order */
             bwork_post(w, 3, y0, n, y0);
-            fos_jpeg_prep(d->bjpeg, d->brgb, bw * 3, n, 0, half, w->coef);
+            fos_jpeg_main(d->bjpeg, d->brgb, bw * 3, n);
             bwork_wait(w);
-            fos_jpeg_emit(d->bjpeg, w->coef, n);
+            fos_jpeg_join(d->bjpeg, w->coef, &w->jout, n);
         }
         else
         {
