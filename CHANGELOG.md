@@ -18,7 +18,7 @@ From the original M-Film:
   3513), with the Cineon input their tables were made for (#107). The original took them off (#126). Their
   glow is fainter, like every other film's.
 - **Grain of Portra 400, Portra 400 NC/VC/UC and Pro 400H** is the original's again.
-- **Five films' lines on the shelf** say what they are: CineStill 400T is M-Film's own look, the two infrared
+- **Five films' lines on the shelf** say what they are: CineStill 400T is M-Film's own look with cool shadows, the two infrared
   films are impressions (#149).
 - The Film-Luts tables are fetched at one fixed commit and each is checked before it is baked (#155).
 
