@@ -3,9 +3,10 @@
 What changed in M-Film for the Canon EOS 6D Mark II, newest first. For what the fork adds to the original
 M-Film as a whole, see the [README](README.md).
 
-## Next (not released yet)
+## 0.2.1-6d2.3 (2026-11-17)
 
-From the original M-Film:
+### Colour as in the original M-Film
+
 
 - **The darkroom develops with the white balance the camera was on** (#123). It used one fixed balance for
   every frame, which left a daylight grey warm before the film did anything. Loading a roll now sets the
@@ -24,6 +25,14 @@ From the original M-Film:
 
 With these, every film the original has prints pixel for pixel as in the original, Small and Large, checked
 on all 68 with the same RAW.
+
+### In the camera
+
+- **No donation page and no Darkrooms adverts.** The original's *Support* page (a QR code to buy its developer
+  a coffee) is gone, with `ML/data/FOSQR.BIN`. The darkroom no longer suggests Darkrooms, the original's
+  paid desktop program. To support the original M-Film, see [its page](https://github.com/HNGSeries/mfilm-canon-film-simulation).
+- **The zip's name says its version:** `M-Film-0.2.1-6d2.3-camera-6D2.111.zip`, as the original's zips do
+  from its 0.2.4.
 
 ## 0.2.1-6d2.2 (2026-11-15)
 

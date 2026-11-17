@@ -22,7 +22,7 @@ The zip has everything, Magic Lantern included: you don't install Magic Lantern 
 
 1. Check the camera's firmware: MENU → the last settings tab → *Firmware ver.* It must say 1.1.1.
 2. Copy your photos off the card, then format the card in the camera.
-3. Unzip `M-Film-camera-6D2.111.zip` onto the card's root. The top of the card must show
+3. Unzip `M-Film-0.2.1-6d2.3-camera-6D2.111.zip` onto the card's root. The top of the card must show
    `autoexec.bin`, `ML-SETUP.FIR` and the `ML` folder.
 4. MENU → *Firmware ver.* → update. Follow the screen, then switch the camera off and on.
    This also marks the card to start Magic Lantern, and formatting the card in the camera clears that mark.
@@ -37,9 +37,15 @@ If the camera doesn't start, take the battery out and remove the card. Without t
 
 ## What's new
 
-**0.2.1-6d2.2** (coming): a roll develops a third faster (both processor cores, 180 s → 117 s for 5 Large
-frames), M-Film opens and closes at once with no flash of Canon's last photo, and *Zoom in Prints* and the
-boot animation are settings. All changes: [CHANGELOG.md](CHANGELOG.md).
+**0.2.1-6d2.3:** the colour of the original M-Film. Each frame is developed with the white balance the camera
+was on, the Film-Luts films get a finished photo's tone, and the glow round highlights is fainter and no
+longer reddens the highlight itself. On the 68 films the two share, a print is pixel for pixel the original's.
+The four cinema print films stay on the shelf here. No donation page or Darkrooms adverts in the camera.
+
+**0.2.1-6d2.2:** a roll develops a third faster (both processor cores, 180 s → 117 s for 5 Large frames), and
+M-Film opens and closes at once with no flash of Canon's last photo.
+
+All changes: [CHANGELOG.md](CHANGELOG.md).
 
 ## What this fork adds
 
