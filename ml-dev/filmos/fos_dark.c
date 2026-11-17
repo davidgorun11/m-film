@@ -165,10 +165,7 @@ static void dark_bake()
     }
     else
         snprintf(b, sizeof(b), "Everything is developed " T_DOT " %d roll%s of prints", nrolls, nrolls > 1 ? "s" : "");
-    int w = fos_text(cv, &fos_font_sm, DK_X, 106, b, C_TEXT3, OPAQUE, 0);
-    /* the camera takes its time; a computer doesn't */
-    if (waiting && w + 260 < DK_W)
-        fos_text_r(cv, &fos_font_sm, DK_X + DK_W, 106, "Faster: Darkrooms on a computer", C_ACCENT2, OPAQUE, 0);
+    fos_text(cv, &fos_font_sm, DK_X, 106, b, C_TEXT3, OPAQUE, 0);
     ui_to_bg(0);
 }
 
@@ -1151,7 +1148,7 @@ static void develop_hints()
     {
         x += ui_keycap(x, base, "MENU") + 8;
         x += fos_text(cv, &fos_font_sm, x, base - 1, "Stop", SL_TEXT2, OPAQUE, 0) + 22;
-        fos_text_r(cv, &fos_font_sm, FOS_W - 24, base - 1, "Keep the camera on " T_DOT " faster with Darkrooms on a computer", SL_TEXT3, OPAQUE, 0);
+        fos_text_r(cv, &fos_font_sm, FOS_W - 24, base - 1, "Keep the camera on", SL_TEXT3, OPAQUE, 0);
     }
     ui_damage(HINTS_Y, FOS_H);
 }

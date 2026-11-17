@@ -43,7 +43,6 @@ LOG="${LOG:-$HOME/ml/build_fork_$PLAT$TAG.log}"
 #   rst2html (docutils)  the modules' help text (ML's modules/readme2modulestrings.py)
 #   distutils            imported by that script: from Python 3.12 only setuptools has it
 #   numpy                the films' colour tables (films/lut.py)
-#   segno                the donation QR codes (filmos/tools/genqr.py)
 #   zip, unzip           ML's make zips the card files (platform/Makefile), and they come out of it
 # setup_wsl.sh installs them with apt: Ubuntu's own python3 has no pip, and pip
 # won't install into it (PEP 668). In a venv, or the Python CI sets up, pip does.
@@ -195,9 +194,6 @@ mkdir -p "$OUT/ML/data"
 # the films beyond the built-in eight (films/films.py, tools/catalog.py)
 F="$HERE/filmos"
 python3 "$F/tools/genfilms.py" "$OUT/ML/data/FOSFILMS.BIN"
-
-# the donation links in donate.txt as QR codes
-python3 "$F/tools/genqr.py" "$HERE/donate.txt" "$OUT/ML/data/FOSQR.BIN"
 
 # every film's colour table: the camera makes none itself, and stops with
 # "no colour table" if one is missing or is not for its look. Mixed from
