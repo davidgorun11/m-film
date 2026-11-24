@@ -101,9 +101,15 @@ static const char *short_date(const char *when)
     static char b[16];
     int m = (when[5] - '0') * 10 + (when[6] - '0');
     if (strlen(when) < 10 || m < 1 || m > 12) return "";
-    char year[5];
-    snprintf(b, sizeof(b), "%c%c %s %s", when[8] == '0' ? ' ' : when[8], when[9], mon[m - 1], fos_copy(year, sizeof(year), when, 4));
-    return b[0] == ' ' ? b + 1 : b;
+    /* put together by hand: the camera's snprintf has no %c (the list showed a row of 2s for the date) */
+    int i = 0;
+    if (when[8] != '0') b[i++] = when[8];
+    b[i++] = when[9]; b[i++] = ' ';
+    memcpy(b + i, mon[m - 1], 3); i += 3;
+    b[i++] = ' ';
+    memcpy(b + i, when, 4); i += 4;
+    b[i] = 0;
+    return b;
 }
 
 /* ================================================================ the list */
