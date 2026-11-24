@@ -671,6 +671,8 @@ static void palette_ours()
     }
 }
 
+static void osd_blank();
+
 static void palette_canon()
 {
     for (int i = 1; i < 255; i++)
@@ -731,7 +733,7 @@ static void film_ui_open()
     msleep(landed ? 50 : 0);                    /* and a moment for its screen to settle */
     canon_gui_disable_front_buffer();
     CancelDateTimer();
-    clrscr();
+    osd_blank();
     bmp_on();
     ui_last_mode_poke = get_ms_clock();
     dbg("film os: open; Canon GUI mode %d (asked %d) after %d ms, hold %s", CURRENT_GUI_MODE, GUIMODE_ML_MENU,
@@ -740,8 +742,7 @@ static void film_ui_open()
 
 /* DIGIC 4/5: Canon keeps two bitmap buffers (ML's real and idle, 0x80000
  * apart) and flips between them once its screen is given back. clrscr()
- * empties only the one on show, so the film OS still lying in the other came
- * back in Canon's colours as a rainbow when leaving by MENU (#184). */
+ * empties only the one on show (#184). */
 static void clrscr_both()
 {
     clrscr();
@@ -752,13 +753,38 @@ static void clrscr_both()
 #endif
 }
 
+/* Outside LiveView the bitmap layer must not go see-through: on the 5D3
+ * the video layer under it holds garbage, and a clear layer showed it as
+ * coloured noise on the way in (Trash) and out (MENU). Both buffers are
+ * covered in opaque black instead, in Canon's own black (COLOR_BLACK),
+ * which is set first so it is black under our palette too. In LiveView,
+ * clear as before: LiveView is what should show. */
+static void osd_blank()
+{
+#ifdef CONFIG_DIGIC_45
+    if (!lv)
+    {
+        EngDrvOut(LCD_Palette[3 * COLOR_BLACK], LCD_Palette[3 * COLOR_BLACK + 2]);
+        EngDrvOut(LCD_Palette[3 * COLOR_BLACK + 0x300], LCD_Palette[3 * COLOR_BLACK + 2]);
+        for (int idle = 0; idle < 2; idle++)
+        {
+            bmp_draw_to_idle(idle);
+            BMP_LOCK( bmp_fill(COLOR_BLACK, BMP_W_MINUS, BMP_H_MINUS, BMP_TOTAL_WIDTH, BMP_TOTAL_HEIGHT); )
+        }
+        bmp_draw_to_idle(0);
+        return;
+    }
+#endif
+    clrscr_both();
+}
+
 static void film_ui_close()
 {
     /* a page left at once (the shutter button, a Canon dialog) is still on
      * the screen: off it before Canon's palette comes back, or it shows in
      * Canon's colours while the GUI mode changes (#19). In LiveView bmp_off
      * hides it. */
-    if (!lv) clrscr_both();
+    if (!lv) osd_blank();
     palette_canon();
     if (lv) bmp_off();
     SetGUIRequestMode(0);
@@ -770,15 +796,16 @@ static void film_ui_close()
     if (HUD_HOLDS && hud_enabled && roll_loaded && DISPLAY_IS_ON && !is_movie_mode() && !(ui_after & AFTER_CANON_MENU))
     {
         canon_gui_disable_front_buffer();
-        clrscr();
+        osd_blank();
         canon_handover = 1;
         if (lv) bmp_on();
         return;
     }
     vram_shown = 0;
-    clrscr_both();
+    osd_blank();
     canon_gui_enable_front_buffer(0);
-    clrscr();
+    /* Canon paints its own screen over the black; see-through only in LiveView */
+    if (lv) clrscr();
     redraw();
     if (lv) bmp_on();
 }
