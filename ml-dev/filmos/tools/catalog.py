@@ -71,6 +71,10 @@ DESC = {
     "retro100": "Soft tonal B&W",
     "ortho25": "Orthochromatic: reds go dark",
     "ir400": "Infrared impression, bright leaves",
+    "kodak2383": "Cinema print: teal shadows",
+    "kodak2393": "Cinema print, richer blacks",
+    "fuji3510": "Fuji print film, soft colour",
+    "fuji3513": "Fuji print for digital masters",
 }
 
 
@@ -164,4 +168,8 @@ LABELS = {
     "retro100": rollei("RETRO", "100", (AMBER, 180), "TONAL"),
     "ortho25": rollei("ORTHO", "25", (BLUE, 130), "PLUS"),
     "ir400": rollei("INFRARED", "400", (CRIMSON, 110), "IR"),
+    "kodak2383": L(STRIPES, K, K, YEL, W, YEL, "KODAK", "VISION", "2383", "COLOR PRINT"),
+    "kodak2393": L(STRIPES, K, K, YEL, W, YEL, "KODAK", "VISION", "2393", "PREMIER"),
+    "fuji3510": L(STRIPES, (GREEN, 60), (GREEN, 60), (GRAY, 220), W, (GRAY, 220), "FUJIFILM", "ETERNA", "3510", "COLOR PRINT"),
+    "fuji3513": L(STRIPES, (GREEN, 60), (GREEN, 60), (GRAY, 220), W, (GRAY, 220), "FUJIFILM", "ETERNA", "3513", "DI"),
 }
