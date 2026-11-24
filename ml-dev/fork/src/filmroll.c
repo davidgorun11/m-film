@@ -1076,6 +1076,15 @@ void fos_port_present(const uint8_t *rows, int pitch, int y0, int y1)
         memcpy(vram + y * BMPPITCH, rows + (y - y0) * pitch, FOS_W);
         shown_sum[y] = row_sum(vram + y * BMPPITCH);
     }
+#ifdef CONFIG_DIGIC_45
+    /* the 5D3 shows its other buffer for seconds after the film OS opens,
+     * with its menu in it, while ML's pointer still names this one
+     * (2026-11-23): ours goes into both */
+    uint8_t *idle = bmp_vram_idle();
+    if (idle && idle != vram)
+        for (int y = y0; y < y1; y++)
+            memcpy(idle + y * BMPPITCH, rows + (y - y0) * pitch, FOS_W);
+#endif
 }
 
 void fos_port_palette()
