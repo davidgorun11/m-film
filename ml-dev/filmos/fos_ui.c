@@ -784,7 +784,7 @@ void fos_ui_run(int open)
         ui_now = now;
         /* the first second whole: Canon settles its screen after LiveView and may paint over the one frame
          * drawn on opening (black until a key, 2026-11-15) */
-        if (now - t_open < 1000) ui_damage_all();
+        if (now - t_open < 3000) ui_damage_all();   /* 3 s: the 5D3 draws its menu ~2 s after opening */
 
         if (fos_port_abort())
             break;

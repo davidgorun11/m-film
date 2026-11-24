@@ -670,6 +670,8 @@ static void draw_canisters(float lift_mid, float spread, float fade_sides, int l
         {
             int cx = p.cx8 >> 8;
             int top = p.floor_y - fos_can_height(p.scale) - 14;
+            /* not over the shelf tabs: on the cap instead when the canister stands tall (5D3, 2026-11-23) */
+            if (top - 13 < TABS_Y + 12) top = TABS_Y + 25;
             int a = (int) (p.light * 1.0f);
             const char *t = "IN CAMERA";
             int tw = fos_text_w(&fos_font_xs, t, 24);

@@ -1017,7 +1017,14 @@ static int overdrawn(struct overdraw_check *o, const uint8_t *vram, uint8_t *sta
         o->rest = 0;
         return 0;
     }
+#ifndef CONFIG_DIGIC_45
     if (++o->in_a_row > 40)
+#else
+    /* the 5D3 keeps drawing its menu over ours for seconds after the film OS
+     * opens: resting let it stay on the screen (2026-11-23). Its buffers
+     * don't flip like the 100D's (#73), so ours is always put back */
+    if (0)
+#endif
     {
         o->in_a_row = 0;
         o->rest = o->rest ? MIN(o->rest * 2, 60000) : 5000;
