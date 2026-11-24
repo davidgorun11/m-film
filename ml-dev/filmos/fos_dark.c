@@ -169,9 +169,7 @@ static void dark_bake()
     else
         snprintf(b, sizeof(b), "Everything is developed " T_DOT " %d roll%s of prints", nrolls, nrolls > 1 ? "s" : "");
     int w = fos_text(cv, &fos_font_sm, DK_X, 106, b, C_TEXT3, OPAQUE, 0);
-    /* the camera takes its time; a computer doesn't */
-    if (waiting && w + 260 < DK_W)
-        fos_text_r(cv, &fos_font_sm, DK_X + DK_W, 106, "Faster: Darkrooms on a computer", C_ACCENT2, OPAQUE, 0);
+    (void) w;                               /* no Darkrooms advert in the camera (6D2 fork) */
     ui_to_bg(0);
 }
 

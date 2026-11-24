@@ -379,7 +379,6 @@ static const struct item settings_items[] =
     { "Advanced", IT_PAGE, PAGE_ADVANCED, 0, 0, "LEDs, wind lever, start up, screen colour, the debug log." },
     { "Canon menu", IT_ACTION, FA_CANON_MENU, 0, 0, "Leave and open the camera's own menu (format card, RAW...)." },
     { "About", IT_INFO, -2, 0, 0, FOS_NAME " by HNGSeries " T_DOT " Barlow typeface by Jeremy Tribby (SIL OFL)" },
-    { "Support " FOS_NAME, IT_INFO, -3, 0, 0, "Scan the code with your phone to buy the developer a coffee." },
 };
 
 static const struct item lens_items[] =
@@ -899,71 +898,6 @@ static void preview_chart()
     preview_caption("TEST CHART");
 }
 
-/* the donation links as QR codes (ML/DATA/FOSQR.BIN, see tools/genqr.py),
- * read the first time they are shown */
-struct qr { char label[48], url[80]; int n; const uint8_t *bits; };
-static struct qr qrs[2];
-static int nqr = -1;
-
-static void qr_load()
-{
-    char path[64];
-    snprintf(path, sizeof(path), "%sML/DATA/FOSQR.BIN", fos_port_card());
-    nqr = 0;
-    void *f = fos_port_open(path, 0);
-    if (!f) return;
-    static uint8_t blob[1024];
-    int size = fos_port_read(f, blob, sizeof(blob));
-    fos_port_close(f);
-    if (size < 8 || memcmp(blob, "FOSQ", 4)) return;
-    int n = blob[4], p = 8;
-    for (int i = 0; i < n && i < 2; i++)
-    {
-        if (p + 132 > size) break;
-        struct qr *q = &qrs[nqr];
-        memcpy(q->label, blob + p, 48); q->label[47] = 0;
-        memcpy(q->url, blob + p + 48, 80); q->url[79] = 0;
-        q->n = blob[p + 128] | blob[p + 129] << 8;
-        q->bits = blob + p + 132;
-        p += 132 + (q->n * q->n + 7) / 8;
-        if (q->n < 21 || q->n > 61 || p > size) break;
-        nqr++;
-    }
-}
-
-/* a code centred on (cx, cy), its label at base */
-static void draw_qr(const struct qr *q, int cx, int cy, int mod, int base)
-{
-    int quiet = 2, side = (q->n + 2 * quiet) * mod, x0 = cx - side / 2, y = cy - side / 2;
-    fos_fill(cv, x0, y, side, side, FC(RAMP_GRAY, 245));
-    for (int r = 0; r < q->n; r++)
-        for (int c = 0; c < q->n; c++)
-        {
-            int i = r * q->n + c;
-            if (q->bits[i >> 3] >> (7 - (i & 7)) & 1)
-                fos_fill(cv, x0 + (quiet + c) * mod, y + (quiet + r) * mod, mod, mod, FC(RAMP_GRAY, 8));
-        }
-    const struct fos_font *f = fos_text_w(&fos_font_mdb, q->label, 0) <= PV_W - 24 ? &fos_font_mdb : &fos_font_sm;
-    fos_text_c(cv, f, cx, base, q->label, C_TEXT, OPAQUE, 0);
-}
-
-static void preview_support()
-{
-    int cx = PV_X + PV_W / 2;
-    if (nqr < 0) qr_load();
-    if (nqr == 0)
-    {
-        ui_aperture(cx, PV_Y + 80, 40, 1700, 5000);
-        fos_text_c(cv, &fos_font_lg, cx, PV_Y + 162, "Thank you", C_TEXT, OPAQUE, 0);
-        fos_text_cfit(cv, &fos_font_sm, cx, PV_Y + 186, "for shooting film with " FOS_NAME, C_TEXT2, OPAQUE, 0, FOS_BIG(FOS_W, PV_W - 16));
-    }
-    else if (nqr == 1)
-        draw_qr(&qrs[0], cx, PV_Y + 116, 200 / (qrs[0].n + 4), PV_Y + 238);
-    else
-        for (int i = 0; i < 2; i++)
-            draw_qr(&qrs[i], cx + (i ? 62 : -62), PV_Y + 116, 112 / (qrs[i].n + 4), PV_Y + 190);
-    fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + PV_H - 14, "SUPPORT", C_TEXT3, OPAQUE, 48, FOS_BIG(FOS_W, PV_W - 16));
-}
 
 static void preview_about()
 {
@@ -1070,11 +1004,6 @@ static void page_row(const struct item *it, int i, int y, int selected)
         case IT_INFO:
             if (it->setting == -1)
                 snprintf(b, sizeof(b), "%s", fos_port_lens_manual() ? "Manual" : "Auto");
-            else if (it->setting == -3)
-            {
-                if (nqr < 0) qr_load();
-                snprintf(b, sizeof(b), "%s", nqr > 0 ? "Scan the code" : "");
-            }
             else
                 snprintf(b, sizeof(b), "%s", fos_port_version());
             fos_text_r(cv, &fos_font_md, rx, base, b, C_TEXT3, OPAQUE, 0);
@@ -1113,7 +1042,6 @@ void page_draw()
         else if (st == FS_SIZE) preview_size();
         else if (st == FS_STAMP) preview_stamp();
         else if (st == FS_MODE) preview_mode();
-        else if (it->setting == -3 && it->kind == IT_INFO) preview_support();
         else if (st == VS_FINDER || st == FS_EXPSIM || st == FS_LEDS || st == FS_FOCUS || st == FS_WIND || st == FS_HUD_BATT || st == FS_CANON_OFF)
             preview_finder();
         else preview_about();
