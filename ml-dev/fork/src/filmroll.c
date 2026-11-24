@@ -1219,9 +1219,11 @@ void *fos_port_open(const char *path, int write)
  * an uncached buffer. Taken at start (card_buffer), while there is memory
  * for it: on a 5D Mark II, asked for only when the darkroom first read a
  * roll's log, it wasn't there, and every read came back empty (#10). */
-#define BOUNCE (64 * 1024)
+#define BOUNCE (256 * 1024)             /* one DMA read for a whole chunk of the darkroom's (192 KB) */
 static uint8_t *bounce = 0;
 static int bounce_size = 0;
+/* where a file's reading time goes (ms in Canon's read, ms copying out of the uncached buffer, bytes): logged at close */
+static int rd_fio = 0, rd_copy = 0, rd_bytes = 0;
 
 static int card_buffer()
 {
@@ -1234,6 +1236,49 @@ static int card_buffer()
     return bounce != 0;
 }
 
+/* out of the uncached buffer: every load from it is a trip to the RAM, so a word at a time (src is word
+ * aligned), the bytes stored one by one (dst may sit anywhere) */
+static void copy_uncached(uint8_t *dst, const uint8_t *src, int n)
+{
+    const uint32_t *s = (const uint32_t *) src;
+    for (; n >= 4; n -= 4, dst += 4)
+    {
+        uint32_t w = *s++;
+        dst[0] = (uint8_t) w; dst[1] = (uint8_t) (w >> 8); dst[2] = (uint8_t) (w >> 16); dst[3] = (uint8_t) (w >> 24);
+    }
+    for (src = (const uint8_t *) s; n > 0; n--) *dst++ = *src++;
+}
+
+/* The same bytes through the cache: Canon's DMA wrote them behind the CPU's back, so the cache's lines of the
+ * buffer are dropped first (only whole lines inside it: a line shared with a neighbour may hold the neighbour's
+ * unwritten data), and the ends go the slow way. Measured on a 6D Mark II: the uncached copy took 5 s of a 24 MB
+ * RAW, Canon's read 0.65 s. A few words are checked against the uncached view each time; one mismatch (a cache
+ * this doesn't reach) and the slow copy is used from then on. */
+static int fast_copy = 1;
+
+static void copy_out(uint8_t *dst, uint8_t *b, int n)
+{
+    uint32_t lo = ((uint32_t) b + 63) & ~63u, hi = ((uint32_t) b + n) & ~63u;
+    if (!fast_copy || hi <= lo + 256) { copy_uncached(dst, UNCACHEABLE(b), n); return; }
+    for (uint32_t a = lo; a < hi; a += 32) asm volatile ("mcr p15, 0, %0, c7, c6, 1" : : "r" (a));
+    asm volatile ("mcr p15, 0, %0, c7, c10, 4" : : "r" (0));     /* dsb, in the form armv5te (modules) knows */
+    const uint32_t *c = (const uint32_t *) lo, *u = (const uint32_t *) UNCACHEABLE((void *) lo);
+    int words = (int) (hi - lo) / 4, step = words / 48 + 1, bad = 0;
+    for (int i = 0; i < words; i += step) bad |= c[i] != u[i];
+    bad |= c[words - 1] != u[words - 1];
+    if (bad)
+    {
+        fast_copy = 0;
+        dbg("read: the cache held stale data, slow copy from now on");
+        copy_uncached(dst, UNCACHEABLE(b), n);
+        return;
+    }
+    int head = (int) (lo - (uint32_t) b);
+    copy_uncached(dst, UNCACHEABLE(b), head);
+    memcpy(dst + head, (void *) lo, hi - lo);
+    copy_uncached(dst + (hi - (uint32_t) b), UNCACHEABLE((void *) hi), n - (int) (hi - (uint32_t) b));
+}
+
 int fos_port_read(void *f, void *buf, int size)
 {
     if (buf != CACHEABLE(buf))
@@ -1243,9 +1288,12 @@ int fos_port_read(void *f, void *buf, int size)
     while (done < size)
     {
         int n = MIN(size - done, bounce_size);
+        int t0 = get_ms_clock();
         int got = FIO_ReadFile(f, UNCACHEABLE(bounce), n);
+        int t1 = get_ms_clock();
         if (got <= 0) break;
-        memcpy((uint8_t *) buf + done, UNCACHEABLE(bounce), got);
+        copy_out((uint8_t *) buf + done, CACHEABLE(bounce), got);
+        rd_fio += t1 - t0; rd_copy += get_ms_clock() - t1; rd_bytes += got;
         done += got;
         if (got < n) break;
     }
@@ -1265,6 +1313,8 @@ int fos_port_seek(void *f, int offset)
 void fos_port_close(void *f)
 {
     if (f) FIO_CloseFile(f);
+    if (rd_bytes > 1024 * 1024) dbg("read: %d KB, Canon's read %d ms, copy %d ms (buffer %d KB, %s)", rd_bytes / 1024, rd_fio, rd_copy, bounce_size / 1024, fast_copy ? "cached" : "uncached");
+    rd_fio = rd_copy = rd_bytes = 0;
 }
 
 int fos_port_list(const char *dir, int (*fn)(void *ctx, const char *name, int is_dir), void *ctx)
