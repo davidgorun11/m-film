@@ -674,6 +674,23 @@ static void palette_ours()
 
 static void osd_blank();
 
+/* the LV press the film OS makes itself goes to Canon, not to the film OS */
+static int lv_fake_until = 0;
+
+/* Into the film OS, LiveView goes off and stays off when it closes: the LV
+ * button turns it back on (as the 6D2 fork, the user's wish 2026-11-12). The
+ * film OS then opens as with the viewfinder, on Canon's playback. */
+static void lv_off_for_film_os()
+{
+    if (!lv || is_movie_mode()) return;
+    int t0 = get_ms_clock();
+    lv_fake_until = t0 + 1000;
+    fake_simple_button(BGMT_LV);
+    for (int i = 0; i < 300 && lv; i++) msleep(10);
+    msleep(lv ? 0 : 300);                   /* Canon settles its screen */
+    dbg("film os: LiveView %s for it after %d ms", lv ? "didn't stop" : "turned off", get_ms_clock() - t0);
+}
+
 /* Canon's screen under the film OS. Canon's menu (GUIMODE_ML_MENU) keeps
  * drawing on the 5D3 outside LiveView: a black band over the shelf tabs and,
  * seconds in, its whole menu in the other buffer (2026-11-23). Its playback
@@ -787,7 +804,7 @@ static void osd_blank()
         return;
     }
 #endif
-    clrscr_both();
+    clrscr();       /* in LiveView only the buffer on show: the other is Canon's */
 }
 
 static void film_ui_close()
@@ -833,6 +850,7 @@ static void ui_task(int open)
     keyq_in = keyq_out = 0;
     ui_abort = 0;
     ui_after = 0;
+    lv_off_for_film_os();                   /* the film OS never runs over LiveView (as the 6D2 fork) */
     film_ui_open();
     DBG_STATE("film os: open");
     memset(&stat_all, 0, sizeof(stat_all));
@@ -1082,7 +1100,7 @@ static void ui_overdrawn_check(int at_once)
     /* the other buffer holds the same rows (fos_port_present writes both),
      * and the 5D3 shows it with its menu drawn in: checked the same way */
     static struct overdraw_check check_idle = { .what = "film os, other buffer" };
-    uint8_t *idle = bmp_vram_idle();
+    uint8_t *idle = lv ? 0 : bmp_vram_idle();
     if (idle && idle != vram && overdrawn(&check_idle, idle, 0, &y0, &y1))
         fos_ui_overdrawn(y0, y1 + 1);
 #endif
@@ -1104,7 +1122,7 @@ void fos_port_present(const uint8_t *rows, int pitch, int y0, int y1)
     /* the 5D3 shows its other buffer for seconds after the film OS opens,
      * with its menu in it, while ML's pointer still names this one
      * (2026-11-23): ours goes into both */
-    uint8_t *idle = bmp_vram_idle();
+    uint8_t *idle = lv ? 0 : bmp_vram_idle();     /* in LiveView that memory is Canon's (a green band, 2026-11-23) */
     if (idle && idle != vram)
         for (int y = y0; y < y1; y++)
             memcpy(idle + y * BMPPITCH, rows + (y - y0) * pitch, FOS_W);
@@ -2060,6 +2078,7 @@ static int ui_key(struct event *event, int key)
         case MODULE_KEY_Q:
         case MODULE_KEY_JOY_CENTER:     keyq_push(FK_SET); return 0;
         case MODULE_KEY_UNPRESS_SET:    return 0;
+        case MODULE_KEY_LV:             return get_ms_clock() - lv_fake_until < 0;  /* our own press: Canon's */
         case MODULE_KEY_MENU:           keyq_push(FK_MENU); return 0;
         case MODULE_KEY_INFO:           keyq_push(FK_INFO); return 0;
         case MODULE_KEY_PLAY:           keyq_push(FK_PLAY); return 0;
