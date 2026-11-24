@@ -646,9 +646,9 @@ static uint8_t photo_pal[FOS_PRINT_COLOURS][3];
 
 static void palette_ours()
 {
-#ifndef CONFIG_DIGIC_45
+    /* not while the screen is dark: on the 5D3 Canon's palette then came back
+     * as it lit and stayed, the film OS in Canon's colours (2026-11-23) */
     if (!DISPLAY_IS_ON) return;
-#endif
     /* Canon's white tells the opacity and where white sits in luma
      * (its own conversion puts it at 235, not 255) */
     uint32_t white = LCD_Palette[3 * COLOR_WHITE + 2];
