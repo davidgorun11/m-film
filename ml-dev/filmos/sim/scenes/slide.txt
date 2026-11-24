@@ -1,0 +1,9 @@
+# shelves change with left/right and slide sideways; the dial goes along the films (5D3 fork)
+roll 3 2 36
+open shelf
+700 dr
+1200 right
+2600 right
+4000 left
+5400 wl
+6000 end

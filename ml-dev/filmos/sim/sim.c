@@ -220,6 +220,9 @@ int  fos_port_battery(int *exact)
 }
 int  fos_port_lens_manual() { return 1; }
 const char *fos_port_lens_name() { return "Manual lens"; }
+int fos_port_lens_f10() { return 0; }                      /* the simulator's lens is manual */
+int fos_port_lens_wide_f10() { return 0; }
+void fos_port_lens_detail(char *buf, int size) { if (size) buf[0] = 0; }
 #ifndef MFILM_VERSION
 #define MFILM_VERSION "dev"
 #endif

@@ -2222,8 +2222,8 @@ static int ui_key(struct event *event, int key)
             return 0;
 
         case MODULE_KEY_PRESS_SET:
-        case MODULE_KEY_Q:
-        case MODULE_KEY_JOY_CENTER:     keyq_push(FK_SET); return 0;
+        case MODULE_KEY_Q:              keyq_push(FK_SET); return 0;
+        case MODULE_KEY_JOY_CENTER:     return 0;      /* not SET: it loaded rolls by accident (5D3, 2026-11-24) */
         case MODULE_KEY_UNPRESS_SET:    return 0;
         case MODULE_KEY_LV:             return get_ms_clock() - lv_fake_until < 0;  /* our own press: Canon's */
         case MODULE_KEY_MENU:           keyq_push(FK_MENU); return 0;

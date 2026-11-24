@@ -7,8 +7,9 @@
  * that position. The text below follows the same position: it slides out
  * with the film leaving the middle and in with the one arriving.
  *
- * The films stand on shelves by kind (colour, slide, B&W, cine): up and
- * down change shelf, and the canisters of the next one drop in. Above them
+ * The films stand on shelves by kind (colour, slide, B&W, cine): left and
+ * right change shelf, and its canisters slide out sideways as the next
+ * shelf's slide in; the dials go along the films (5D3 fork). Above them
  * is the shelf of the films loaded last: the shelf opens on it, at the last
  * one, so the same film again is one press.
  *
@@ -50,8 +51,11 @@ static const int8_t shelf_order[NSHELVES] = { G_RECENT, FOS_GROUP_COLOUR, FOS_GR
 static int group;                   /* the shelf: FOS_GROUP_*, or G_RECENT */
 static int list[MAX_LIST], nlist;   /* its films */
 static int group_at[NSHELVES];      /* the place last chosen on each shelf */
-static struct spring drop;          /* a new shelf's canisters dropping in, 1 -> 0 */
-static int drop_dir;
+static struct spring drop;          /* a new shelf sliding in, 1 -> 0 */
+static int drop_dir;                /* +1: to the shelf on the right (the canisters go left), -1 the other way */
+static int old_list[MAX_LIST], old_n;   /* the shelf left, sliding out while drop runs */
+static float old_x;
+#define SLIDE_PX    560             /* how far a shelf slides in or out */
 static int exp_sel;
 static struct spring exp_roll;      /* the exposures chip rolls to the new number */
 static int exp_prev;
@@ -524,17 +528,21 @@ void shelf_key(int k)
     }
     switch (k)
     {
-        case FK_LEFT: case FK_WHEEL_L:
+        /* the dials go along the films; ◀ ▶ change shelf, as the tabs above stand (5D3 fork, 2026-11-24) */
+        case FK_WHEEL_L: case FK_DIAL_L:
             if (target > 0) target--; else nudge = -1;
             break;
-        case FK_RIGHT: case FK_WHEEL_R:
+        case FK_WHEEL_R: case FK_DIAL_R:
             if (target < nlist - 1) target++; else nudge = 1;
             break;
-        case FK_UP: case FK_DOWN: case FK_DIAL_L: case FK_DIAL_R:
+        case FK_LEFT: case FK_RIGHT:
         {
             /* the next shelf (skipping empty ones), at the film last chosen there */
-            int dir = k == FK_DOWN || k == FK_DIAL_R ? 1 : -1, from = group, g = group, at = 0;
+            int dir = k == FK_RIGHT ? 1 : -1, from = group, g = group, at = 0;
             group_at[group] = target;
+            memcpy(old_list, list, sizeof(int) * nlist);
+            old_n = nlist;
+            old_x = pos.x;
             while (shelf_order[at] != group) at++;
             do
             {
@@ -621,15 +629,16 @@ int shelf_update(int dt)
 
 /* ---------------------------------------------------------------- drawing */
 
-static void draw_canisters(float lift_mid, float spread, float fade_sides, int leader_mid)
+/* one shelf's canisters: lst[n_] around place px, moved xoff px sideways and lit light_k */
+static void draw_set(const int *lst, int n_, float px, float maxd, float xoff, float light_k,
+                     float lift_mid, float spread, float fade_sides, int leader_mid)
 {
-    int t0 = fos_port_ms();
     struct { int i; float d; } order[8];
     int n = 0;
-    for (int i = 0; i < nlist && n < 8; i++)
+    for (int i = 0; i < n_ && n < 8; i++)
     {
-        float d = i - pos.x;
-        if (absf(d) > 2.7f) continue;
+        float d = i - px;
+        if (absf(d) > maxd) continue;
         order[n].i = i; order[n].d = d; n++;
     }
     /* far ones first */
@@ -644,19 +653,18 @@ static void draw_canisters(float lift_mid, float spread, float fade_sides, int l
 
     for (int k = 0; k < n; k++)
     {
-        int i = list[order[k].i];
+        int i = lst[order[k].i];
         float d = order[k].d;
         struct fos_can_pose p;
         int mid = absf(d) < 0.5f;
         pose_of(d, &p, mid ? lift_mid : 0, spread);
         if (!mid) p.light = (int) (p.light * (1 - fade_sides));
-        if (drop.x > 0.002f)
+        if (xoff)
         {
-            /* a new shelf: its canisters drop in from above (or rise from below), the far ones a little later */
-            float t = clampf(drop.x * (1 + absf(d) * 0.25f), 0, 1);
-            p.floor_y -= (int) (t * 90 * drop_dir);
-            p.light = (int) (p.light * (1 - t));
-            p.reflect = (int) (p.reflect * (1 - t));
+            /* a shelf sliding in or out sideways, dimmer the further it is from its place */
+            p.cx8 += (int) (xoff * 256);
+            p.light = (int) (p.light * light_k);
+            p.reflect = (int) (p.reflect * light_k);
         }
         if (mid && leader_mid) p.leader = leader_mid;
         if (p.light <= 4) continue;
@@ -679,6 +687,20 @@ static void draw_canisters(float lift_mid, float spread, float fade_sides, int l
             fos_text_c(cv, &fos_font_xs, cx, top + 2, t, FC(RAMP_GRAY, 14), OPAQUE, 24);
         }
     }
+}
+
+static void draw_canisters(float lift_mid, float spread, float fade_sides, int leader_mid)
+{
+    int t0 = fos_port_ms();
+    if (drop.x > 0.002f && old_n)
+    {
+        /* changing shelf: the one left slides out the way the arrow points away from, the next slides in */
+        float t = clampf(drop.x, 0, 1);
+        draw_set(old_list, old_n, old_x, 1.7f, -(1 - t) * SLIDE_PX * drop_dir, t, lift_mid, spread, fade_sides, leader_mid);
+        draw_set(list, nlist, pos.x, 1.7f, t * SLIDE_PX * drop_dir, 1 - t * 0.7f, lift_mid, spread, fade_sides, leader_mid);
+    }
+    else
+        draw_set(list, nlist, pos.x, 2.7f, 0, 1, lift_mid, spread, fade_sides, leader_mid);
     ui_cans_ms += fos_port_ms() - t0;
 }
 
@@ -714,7 +736,7 @@ static const char *shelf_name(int g)
 
 static void draw_static(int alpha)
 {
-    struct hint h[] = { { "<>", "Film" }, { "^v", "Shelf" }, { FOS_KEY_INFO, "Exposures" },
+    struct hint h[] = { { "<>", "Shelf" }, { "DIAL", "Film" }, { FOS_KEY_INFO, "Exposures" },
                         { "SET", roll_in_progress() ? (ui_realistic() ? "Rewind & load" : "Finish & load") : "Load" }, { "MENU", "Back" },
                         { "PLAY", "Sample" } };
     if (alpha >= OPAQUE) ui_hints(h, has_samples ? 6 : 5);
