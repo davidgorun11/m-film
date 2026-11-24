@@ -945,7 +945,11 @@ void shelf_draw()
         ui_bg_restore(0, MOVING_Y0, FOS_W, MOVING_Y1 - MOVING_Y0);
         ui_damage(MOVING_Y0, MOVING_Y1);
     }
+    /* only the band that is restored and shown again each frame: a canister leaving through the top
+     * (Down changes the shelf) would otherwise leave its cap on the status bar, which is never redrawn (#183) */
+    fos_clip(cv, 0, MOVING_Y0, FOS_W, MOVING_Y1);
     draw_canisters(0, 1, 0, 0);
+    fos_noclip(cv);
     draw_dot_marker();
     draw_info();
     draw_sheet();
