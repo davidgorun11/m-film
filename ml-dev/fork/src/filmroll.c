@@ -738,13 +738,27 @@ static void film_ui_open()
         ui_last_mode_poke - t0, hold_given_up ? "given up" : "taken");
 }
 
+/* DIGIC 4/5: Canon keeps two bitmap buffers (ML's real and idle, 0x80000
+ * apart) and flips between them once its screen is given back. clrscr()
+ * empties only the one on show, so the film OS still lying in the other came
+ * back in Canon's colours as a rainbow when leaving by MENU (#184). */
+static void clrscr_both()
+{
+    clrscr();
+#ifdef CONFIG_DIGIC_45
+    bmp_draw_to_idle(1);
+    clrscr();
+    bmp_draw_to_idle(0);
+#endif
+}
+
 static void film_ui_close()
 {
     /* a page left at once (the shutter button, a Canon dialog) is still on
      * the screen: off it before Canon's palette comes back, or it shows in
      * Canon's colours while the GUI mode changes (#19). In LiveView bmp_off
      * hides it. */
-    if (!lv) clrscr();
+    if (!lv) clrscr_both();
     palette_canon();
     if (lv) bmp_off();
     SetGUIRequestMode(0);
@@ -762,6 +776,7 @@ static void film_ui_close()
         return;
     }
     vram_shown = 0;
+    clrscr_both();
     canon_gui_enable_front_buffer(0);
     clrscr();
     redraw();
