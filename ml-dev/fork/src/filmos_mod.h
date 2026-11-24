@@ -42,6 +42,8 @@ MODULE_CONFIGS_START()
     MODULE_CONFIG(roll_folder)
     MODULE_CONFIG(need_wind)
     MODULE_CONFIG(print_zoom)
+    MODULE_CONFIG(single_frame)
+    MODULE_CONFIG(drive_saved)
 MODULE_CONFIGS_END()
 
 /* A camera that ran the built-in film OS kept these settings in Magic

@@ -96,6 +96,8 @@ static CONFIG_INT("filmroll.scr_flip",  scr_flip,         0);   /* 0 Canon's hin
 static CONFIG_INT("filmroll.expsim",    expsim_set,      -1);   /* LiveView's exposure simulation: 1 on, 0 off, -1 as Canon has it */
 static CONFIG_INT("filmroll.hud_style", hud_style,        0);   /* FOS_HUD_*: classic, minimal, rangefinder, clean */
 static CONFIG_INT("filmroll.hud_batt",  hud_batt,         1);   /* the battery on the HUD */
+static CONFIG_INT("filmroll.single",    single_frame,     0);   /* 1: Drive single frame: a burst drive mode is set to single (6D2 fork) */
+static CONFIG_INT("filmroll.drivesave", drive_saved,     -1);   /* the burst mode single frame replaced, put back when it goes off */
 static CONFIG_INT("filmroll.zoom",      print_zoom,       0);   /* a zoom file beside each bigger print; off, faster (6D2 fork) */
 static CONFIG_INT("filmroll.size",      print_size,       1);   /* FOS_SIZE_*: the darkroom's prints (S, M, L) */
 static CONFIG_INT("filmroll.stamp",     date_stamp,       0);   /* the date in the corner of each print */
@@ -893,6 +895,31 @@ static void ui_task(int open)
         fake_simple_button(BGMT_MENU);
 }
 
+/* Drive: single frame (6D2 fork). A burst drive mode is set to single (a silent burst to silent single) and
+ * remembered; with Drive back on Camera the burst mode is put back. The self-timers stay as they are. 5D3 codes
+ * (ML's property.h): 0 single, 4 high-speed burst, 5 burst, 0x13 silent single, 0x14 silent burst, 0x10/0x11/7
+ * self-timer; any other non-zero code is taken for a burst. The log shows what was seen. */
+static void drive_step()
+{
+    int dm = drive_mode, to = -1;
+    int timer = dm == 0x10 || dm == 0x11 || dm == 7;
+    if (single_frame && dm != 0 && dm != 0x13 && !timer)
+    {
+        if (drive_saved < 0) drive_saved = dm;
+        to = dm == 0x14 ? 0x13 : 0;
+    }
+    else if (!single_frame && drive_saved >= 0)
+    {
+        if (dm == 0 || dm == 0x13) to = drive_saved;
+        drive_saved = -1;
+    }
+    if (to < 0) return;
+    static int logged = -1;
+    if (dm != logged) dbg("drive mode 0x%x -> 0x%x", dm, to);     /* once, should the camera not take it */
+    logged = dm;
+    prop_request_change(PROP_DRIVE, &to, 4);
+}
+
 static void open_ui(int screen)
 {
     if (ui_running)
@@ -1500,6 +1527,7 @@ static int *setting_var(int s)
         case FS_HUD_BATT:   return &hud_batt;
         case FS_SIZE:       return &print_size;
         case FS_ZOOM:       return &print_zoom;
+        case FS_DRIVE:      return &single_frame;
         case FS_STAMP:      return &date_stamp;
         case FS_RECENT:     return &recent_films;
         case FS_FADE:       return &page_fade;
@@ -2487,6 +2515,8 @@ static void filmroll_task()
             }
         }
         else if (end_due && !ROLL_FINISHED) end_due = 0;
+        if (k % 20 == 0 && !ui_running && shooting_screen() && job_state_ready_to_take_pic())
+            drive_step();                   /* every second */
         if (k % 2 == 0)
         {
             hud_step();                     /* every 100 ms */
