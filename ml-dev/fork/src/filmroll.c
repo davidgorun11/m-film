@@ -1062,6 +1062,14 @@ static void ui_overdrawn_check(int at_once)
     }
     else if (overdrawn(&check, vram, 0, &y0, &y1))
         fos_ui_overdrawn(y0, y1 + 1);
+#ifdef CONFIG_DIGIC_45
+    /* the other buffer holds the same rows (fos_port_present writes both),
+     * and the 5D3 shows it with its menu drawn in: checked the same way */
+    static struct overdraw_check check_idle = { .what = "film os, other buffer" };
+    uint8_t *idle = bmp_vram_idle();
+    if (idle && idle != vram && overdrawn(&check_idle, idle, 0, &y0, &y1))
+        fos_ui_overdrawn(y0, y1 + 1);
+#endif
 }
 
 void fos_port_present(const uint8_t *rows, int pitch, int y0, int y1)
