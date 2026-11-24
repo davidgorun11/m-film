@@ -673,6 +673,16 @@ static void palette_ours()
 
 static void osd_blank();
 
+/* Canon's screen under the film OS. Canon's menu (GUIMODE_ML_MENU) keeps
+ * drawing on the 5D3 outside LiveView: a black band over the shelf tabs and,
+ * seconds in, its whole menu in the other buffer (2026-11-23). Its playback
+ * stands still, as under the 6D2 fork; in LiveView as before. */
+#if defined(CONFIG_5D3) && defined(GUIMODE_PLAY)
+#define FILM_GUIMODE (lv ? GUIMODE_ML_MENU : GUIMODE_PLAY)
+#else
+#define FILM_GUIMODE GUIMODE_ML_MENU
+#endif
+
 static void palette_canon()
 {
     for (int i = 1; i < 255; i++)
@@ -723,12 +733,12 @@ static void film_ui_open()
 {
     NotifyBoxHide();
     if (lv) bmp_off();
-    SetGUIRequestMode(GUIMODE_ML_MENU);
+    SetGUIRequestMode(FILM_GUIMODE);
     int t0 = get_ms_clock(), landed = 0;
     for (int i = 0; i < 30; i++)
     {
         msleep(10);
-        if (CURRENT_GUI_MODE == GUIMODE_ML_MENU) { landed = 1; break; }
+        if (CURRENT_GUI_MODE == FILM_GUIMODE) { landed = 1; break; }
     }
     msleep(landed ? 50 : 0);                    /* and a moment for its screen to settle */
     canon_gui_disable_front_buffer();
@@ -736,7 +746,7 @@ static void film_ui_open()
     osd_blank();
     bmp_on();
     ui_last_mode_poke = get_ms_clock();
-    dbg("film os: open; Canon GUI mode %d (asked %d) after %d ms, hold %s", CURRENT_GUI_MODE, GUIMODE_ML_MENU,
+    dbg("film os: open; Canon GUI mode %d (asked %d) after %d ms, hold %s", CURRENT_GUI_MODE, FILM_GUIMODE,
         ui_last_mode_poke - t0, hold_given_up ? "given up" : "taken");
 }
 
@@ -890,7 +900,7 @@ void fos_port_sleep(int ms)
     /* the Canon dialog under us times out unless poked (CONFIG_MENU_TIMEOUT_FIX) */
     if (lv && now - ui_last_mode_poke > 2000)
     {
-        SetGUIRequestMode(GUIMODE_ML_MENU);
+        SetGUIRequestMode(FILM_GUIMODE);
         ui_last_mode_poke = now;
     }
     /* other code (ML's powersave, clear overlays) may put Canon's palette
@@ -933,7 +943,7 @@ int fos_port_abort()
      * request time to land, then let go if Canon keeps something else up */
     static int mismatch_since = 0;
     int now = get_ms_clock();
-    if (CURRENT_GUI_MODE == GUIMODE_ML_MENU)
+    if (CURRENT_GUI_MODE == FILM_GUIMODE)
         mismatch_since = 0;
     else if (!mismatch_since)
         mismatch_since = now;
