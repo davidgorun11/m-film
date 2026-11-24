@@ -646,7 +646,9 @@ static uint8_t photo_pal[FOS_PRINT_COLOURS][3];
 
 static void palette_ours()
 {
+#ifndef CONFIG_DIGIC_45
     if (!DISPLAY_IS_ON) return;
+#endif
     /* Canon's white tells the opacity and where white sits in luma
      * (its own conversion puts it at 235, not 255) */
     uint32_t white = LCD_Palette[3 * COLOR_WHITE + 2];
@@ -1109,7 +1111,13 @@ static void ui_overdrawn_check(int at_once)
 void fos_port_present(const uint8_t *rows, int pitch, int y0, int y1)
 {
     uint8_t *vram = bmp_vram_real();
+#ifdef CONFIG_DIGIC_45
+    /* written while the screen is still dark too (power on): it lights up on
+     * ours, not on Canon's last picture (2026-11-23, as the 6D2 fork) */
+    if (!vram)
+#else
     if (!vram || !DISPLAY_IS_ON)
+#endif
         return;
     y0 = COERCE(y0, 0, FOS_H);
     y1 = COERCE(y1, y0, FOS_H);
@@ -2307,7 +2315,12 @@ static void startup_task()
         return;
     }
     int shelf = startup_picker == 2 || (startup_picker == 1 && !ROLL_IN_PROGRESS);
+#ifdef CONFIG_5D3
+    /* no boot animation on the 5D3: it faded in over Canon's last picture (2026-11-23) */
+    if (0)
+#else
     if (boot_anim && startup_picker)
+#endif
         open_ui(shelf ? FOS_OPEN_BOOT : FOS_OPEN_BOOT_LV);
     else if (shelf)
         open_ui(FOS_OPEN_SHELF);
