@@ -614,6 +614,7 @@ static volatile int canon_handover = 0; /* the film OS closed with Canon's scree
 static const uint8_t *vram_shown = 0;
 static int ui_after = 0;                /* what to do once it has let go */
 static int ui_last_mode_poke = 0;
+static int ui_opened_at = 0;                /* when film_ui_open finished */
 static int ui_last_palette = 0;
 
 enum { AFTER_APPLY = 1, AFTER_CANON_MENU = 2 };
@@ -746,6 +747,7 @@ static void film_ui_open()
     osd_blank();
     bmp_on();
     ui_last_mode_poke = get_ms_clock();
+    ui_opened_at = ui_last_mode_poke;
     dbg("film os: open; Canon GUI mode %d (asked %d) after %d ms, hold %s", CURRENT_GUI_MODE, FILM_GUIMODE,
         ui_last_mode_poke - t0, hold_given_up ? "given up" : "taken");
 }
@@ -935,7 +937,11 @@ int fos_port_key()
 
 int fos_port_abort()
 {
-    if (ui_abort || ml_shutdown_requested || !DISPLAY_IS_ON)
+    if (ui_abort || ml_shutdown_requested)
+        return 1;
+    /* Canon's playback (FILM_GUIMODE on the 5D3) switches the screen off for
+     * a moment as it starts: not a reason to leave in the first 1.5 s */
+    if (!DISPLAY_IS_ON && get_ms_clock() - ui_opened_at > 1500)
         return 1;
     if (get_halfshutter_pressed())
         return 1;
