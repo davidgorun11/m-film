@@ -934,7 +934,14 @@ void fos_port_sleep(int ms)
         last_wake = now;
     }
     uint32_t probe = shamem_read(LCD_Palette[3 * PALETTE_PROBE]);
-    if ((probe && probe != palette_probe) || now - ui_last_palette > 1000)
+    /* the screen just lit (power on, Canon's playback starting): Canon's
+     * palette is back with it, ours at once, not up to 1 s later in Canon's
+     * colours (5D3, 2026-11-23) */
+    static int was_lit = 0;
+    int lit = DISPLAY_IS_ON;
+    int lit_now = lit && !was_lit;
+    was_lit = lit;
+    if (lit_now || (probe && probe != palette_probe) || now - ui_last_palette > 1000)
     {
         palette_ours();
         ui_last_palette = now;
