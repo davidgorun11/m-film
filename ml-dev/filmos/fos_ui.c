@@ -782,6 +782,9 @@ void fos_ui_run(int open)
         /* the rest after the last animated frame, slept or taken by others */
         if (frame_end) { stat.rest_ms += now - frame_end; frame_end = 0; }
         ui_now = now;
+        /* the first second whole: Canon settles its screen after LiveView and may paint over the one frame
+         * drawn on opening (black until a key, 2026-11-15) */
+        if (now - t_open < 1000) ui_damage_all();
 
         if (fos_port_abort())
             break;
