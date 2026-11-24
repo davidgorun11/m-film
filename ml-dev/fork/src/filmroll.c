@@ -1081,6 +1081,9 @@ static void ui_overdrawn_check(int at_once)
     int now = get_ms_clock();
     if (now - last < 50 && !at_once) return;
     last = now;
+    /* ML's notify box (rows 50-81, redrawn every 50 ms for 5 s) came up over
+     * the shelf after power on on the 5D3 (2026-11-23): not while we're up */
+    NotifyBoxHide();
     uint8_t *vram = bmp_vram_real();
     if (!vram || !DISPLAY_IS_ON) return;
     int y0, y1;
