@@ -858,6 +858,7 @@ static void ui_task(int open)
     ui_abort = 0;
     ui_after = 0;
     lv_off_for_film_os();                   /* the film OS never runs over LiveView (as the 6D2 fork) */
+    ui_abort = 0;                           /* nothing that came with turning LiveView off is a way out */
     film_ui_open();
     DBG_STATE("film os: open");
     memset(&stat_all, 0, sizeof(stat_all));
@@ -2202,9 +2203,13 @@ static int ui_key(struct event *event, int key)
     int dir = 0;
     switch (key)
     {
+        case MODULE_KEY_REC:
+            /* our own LV press (lv_off_for_film_os) comes as REC on the 5D3: Canon's, not a way out */
+            if (get_ms_clock() - lv_fake_until < 0) return 1;
+            ui_abort = 1;               /* back to the camera, ready to shoot */
+            return 1;
         case MODULE_KEY_PRESS_HALFSHUTTER:
         case MODULE_KEY_PRESS_FULLSHUTTER:
-        case MODULE_KEY_REC:
             ui_abort = 1;               /* back to the camera, ready to shoot */
             return 1;
         case MODULE_KEY_UNPRESS_HALFSHUTTER:
