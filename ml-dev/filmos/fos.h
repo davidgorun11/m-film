@@ -126,6 +126,7 @@ enum
     FS_ZOOM,            /* a zoom file beside each medium or large print, to zoom into in Prints (off: develops faster) */
     FS_DRIVE,           /* 0 the camera's drive mode, 1 single frame: a burst mode is set to single while it is on */
     FS_DEVELOP,         /* when to develop: 0 once the roll is finished (asks), 1 each frame right after it is shot */
+    FS_TWO_DIALS,       /* read only: 1 a top dial (FK_DIAL_*) and a back one (FK_WHEEL_*) */
     FS_COUNT
 };
 #define FOS_SCR_STEPS 6

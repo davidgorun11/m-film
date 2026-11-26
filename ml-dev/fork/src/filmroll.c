@@ -1579,6 +1579,7 @@ int fos_port_get(int s)
 {
     int *v = setting_var(s);
     if (s == FS_FSTOP) return current_fstop();
+    if (s == FS_TWO_DIALS) return FOS_TWO_DIALS;
     if (s == FS_SCR_FLIP && !CAN_FLIP) return -1;
     if (s == FS_EXPSIM) return expsim_get();
     if (s == FS_WIND) return wind_mode ? 1 : 0;
