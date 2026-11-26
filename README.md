@@ -1,6 +1,11 @@
 # M-Film, DG11's build
 
-**An unofficial build of [M-Film](https://github.com/HNGSeries/mfilm-canon-film-simulation) for the Canon EOS 6D Mark II (firmware 1.1.1).**
+**An unofficial build of [M-Film](https://github.com/HNGSeries/mfilm-canon-film-simulation) for two Canon cameras:**
+
+| Camera | Firmware | Where |
+|---|---|---|
+| EOS 6D Mark II | 1.1.1 | [Releases](../../releases/latest) — this branch (`6d2`) |
+| EOS 5D Mark III | 1.2.3 | the [`5d3-rainbow-fix`](../../tree/5d3-rainbow-fix) branch — no release yet |
 
 > [!NOTE]
 > This is not the author's release. It is my own build of HNGSeries' M-Film, made and maintained by
@@ -11,8 +16,10 @@
 > **Every release here was tested on a real camera before it was published.**
 
 M-Film turns the camera into a film camera. Load a roll from a shelf of films, shoot it, then develop it
-in the camera's darkroom. The original M-Film by HNGSeries runs on Canon's DIGIC 4 and 5 cameras. This fork
+in the camera's darkroom. The original M-Film by HNGSeries runs on Canon's DIGIC 4 and 5 cameras. This build
 makes it run on the 6D Mark II, a DIGIC 7 body that the original doesn't support, and makes it faster there.
+On the 5D Mark III, which the original supports, it fixes the screen (no rainbow or Canon's menu over the
+film OS on DIGIC 5), reads RAWs faster and develops each frame right after it is shot, if you ask it to.
 
 [![Download](https://img.shields.io/badge/Download%20for%206D%20Mark%20II-eca834?style=for-the-badge)](../../releases/latest)
 [![License GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-3b352f)](LICENSE)
@@ -20,12 +27,12 @@ makes it run on the 6D Mark II, a DIGIC 7 body that the original doesn't support
 <img src="docs/images/6d2-shelf.png" width="720" alt="The film shelf on the 6D Mark II">
 
 > [!WARNING]
-> **For one camera only: the Canon EOS 6D Mark II with firmware 1.1.1.** Don't put it on any other camera.
+> **Each zip is for one camera and one firmware only**, as its name says. Don't put it on any other camera.
 > Magic Lantern on the 6D Mark II is experimental. You use it at your own risk.
 
 ## Install
 
-The zip has everything, Magic Lantern included: you don't install Magic Lantern separately.
+These steps are for the 6D Mark II. The zip has everything, Magic Lantern included: you don't install Magic Lantern separately.
 
 1. Check the camera's firmware: MENU → the last settings tab → *Firmware ver.* It must say 1.1.1.
 2. Copy your photos off the card, then format the card in the camera.
