@@ -380,7 +380,8 @@ static const struct item settings_items[] =
     { "Manual lens", IT_PAGE, PAGE_LENS, 0, 0, "The aperture of an adapted lens, which the camera can't read." },
     { "Advanced", IT_PAGE, PAGE_ADVANCED, 0, 0, "LEDs, wind lever, start up, screen colour, the debug log." },
     { "Canon menu", IT_ACTION, FA_CANON_MENU, 0, 0, "Leave and open the camera's own menu (format card, RAW...)." },
-    { "About", IT_INFO, -2, 0, 0, FOS_NAME " by HNGSeries " T_DOT " Barlow typeface by Jeremy Tribby (SIL OFL)" },
+    { "About", IT_INFO, -2, 0, 0, FOS_NAME " by HNGSeries " T_DOT " this build by DG11 " T_DOT " Barlow typeface by Jeremy Tribby (SIL OFL)" },
+    { "DG11's build", IT_INFO, -3, 0, 0, "Not the author's release: built and tested on this camera by DG11. Scan the code for it online." },
 };
 
 static const struct item lens_items[] =
@@ -901,22 +902,41 @@ static void preview_chart()
 }
 
 
+/* this build's home online as a QR code (tools: segno, version 3, M), 29 x 29 modules, row by row,
+ * 8 to a byte, most significant first */
+#define BUILD_URL "github.com/davidgorun11/mfilm-dg11"
+#define BUILD_QR_N 29
+static const uint8_t build_qr[] = { 0xfe,0x8a,0x23,0xfc,0x14,0x61,0xd0,0x6e,0xa5,0xc2,0xbb,0x74,0xef,0x85,0xdb,0xa9,0x6f,0x2e,0xc1,0x11,0x25,0x07,0xfa,0xaa,0xaf,0xe0,0x08,0x87,0x00,0x9f,0xea,0xd4,0xba,0x44,0xd9,0xad,0xa2,0xc8,0x42,0x68,0x5a,0xd2,0x9e,0x9a,0x61,0x99,0xb0,0xa8,0xd3,0xf1,0xfe,0x48,0xad,0x7a,0xaf,0x2d,0x02,0x35,0x86,0x96,0x1c,0x46,0x0b,0x1a,0x85,0xb3,0x9f,0xcc,0x33,0x83,0x0b,0x64,0xcd,0xb3,0x8c,0xff,0x00,0x6c,0xc4,0x63,0xfa,0x2f,0x6b,0x10,0x5a,0x5b,0x10,0xba,0xaf,0x1f,0xd5,0xd4,0x3b,0x20,0x6e,0x89,0x53,0x6f,0x04,0xb5,0x46,0xdf,0xe9,0xfb,0xa8,0x00 };
+
+static void preview_build()
+{
+    int cx = PV_X + PV_W / 2, n = BUILD_QR_N, mod = 5, quiet = 4, side = (n + 2 * quiet) * mod;
+    int x0 = cx - side / 2, y0 = PV_Y + 6;
+    fos_fill(cv, x0, y0, side, side, FC(RAMP_GRAY, 245));
+    for (int i = 0; i < n * n; i++)
+        if (build_qr[i >> 3] >> (7 - (i & 7)) & 1)
+            fos_fill(cv, x0 + (quiet + i % n) * mod, y0 + (quiet + i / n) * mod, mod, mod, FC(RAMP_GRAY, 8));
+    fos_text_c(cv, &fos_font_mdb, cx, y0 + side + 26, "DG11's build", C_TEXT, OPAQUE, 0);
+    fos_text_cfit(cv, &fos_font_xs, cx, y0 + side + 46, BUILD_URL, C_TEXT2, OPAQUE, 0, FOS_BIG(FOS_W, PV_W - 16));
+}
+
 static void preview_about()
 {
     int cx = PV_X + PV_W / 2;
     fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + PV_H - 14, "ABOUT", C_TEXT3, OPAQUE, 48, FOS_BIG(FOS_W, PV_W - 16));
-    ui_aperture(cx, PV_Y + 56, 40, 1700, 5000);
-    fos_text_c(cv, &fos_font_lg, cx, PV_Y + 132, FOS_NAME, C_TEXT, OPAQUE, 64);
+    ui_aperture(cx, PV_Y + 48, 40, 1700, 5000);
+    fos_text_c(cv, &fos_font_lg, cx, PV_Y + 124, FOS_NAME, C_TEXT, OPAQUE, 64);
     char m[48];
     snprintf(m, sizeof(m), "Film OS for the %s", fos_port_model());
-    fos_text_cfit(cv, &fos_font_sm, cx, PV_Y + 156, m, C_TEXT2, OPAQUE, 0, FOS_BIG(FOS_W, PV_W - 16));
+    fos_text_cfit(cv, &fos_font_sm, cx, PV_Y + 148, m, C_TEXT2, OPAQUE, 0, FOS_BIG(FOS_W, PV_W - 16));
     /* who made it, then what it stands on */
-    fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + 186, FOS_NAME " BY HNGSERIES", C_TEXT2, OPAQUE, 24, FOS_BIG(FOS_W, PV_W - 16));
+    fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + 172, FOS_NAME " BY HNGSERIES", C_TEXT2, OPAQUE, 24, FOS_BIG(FOS_W, PV_W - 16));
+    fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + 188, "BUILD BY DG11", C_TEXT2, OPAQUE, 24, FOS_BIG(FOS_W, PV_W - 16));
     char b[48];
     snprintf(b, sizeof(b), "VERSION %s " T_DOT " %s", fos_port_version(), __DATE__);
     fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + 204, b, C_TEXT3, OPAQUE, 24, FOS_BIG(FOS_W, PV_W - 16));
-    fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + 222, "MAGIC LANTERN INSIDE", C_TEXT3, OPAQUE, 24, FOS_BIG(FOS_W, PV_W - 16));
-    fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + 240, "BARLOW TYPEFACE " T_DOT " SIL OFL", C_TEXT3, OPAQUE, 24, FOS_BIG(FOS_W, PV_W - 16));
+    fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + 220, "MAGIC LANTERN INSIDE", C_TEXT3, OPAQUE, 24, FOS_BIG(FOS_W, PV_W - 16));
+    fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + 236, "BARLOW TYPEFACE " T_DOT " SIL OFL", C_TEXT3, OPAQUE, 24, FOS_BIG(FOS_W, PV_W - 16));
 }
 
 /* an on / off switch; k = 0..1 where the knob is */
@@ -1006,6 +1026,8 @@ static void page_row(const struct item *it, int i, int y, int selected)
         case IT_INFO:
             if (it->setting == -1)
                 snprintf(b, sizeof(b), "%s", fos_port_lens_manual() ? "Manual" : "Auto");
+            else if (it->setting == -3)
+                snprintf(b, sizeof(b), "Scan the code");
             else
                 snprintf(b, sizeof(b), "%s", fos_port_version());
             fos_text_r(cv, &fos_font_md, rx, base, b, C_TEXT3, OPAQUE, 0);
@@ -1044,6 +1066,7 @@ void page_draw()
         else if (st == FS_SIZE) preview_size();
         else if (st == FS_STAMP) preview_stamp();
         else if (st == FS_MODE) preview_mode();
+        else if (it->kind == IT_INFO && it->setting == -3) preview_build();
         else if (st == VS_FINDER || st == FS_EXPSIM || st == FS_LEDS || st == FS_FOCUS || st == FS_WIND || st == FS_HUD_BATT || st == FS_CANON_OFF)
             preview_finder();
         else preview_about();

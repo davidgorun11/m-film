@@ -1,0 +1,27 @@
+# Settings: the last rows, About and DG11's build with its QR code
+roll 1 14 36
+open home
+500 info
+1200 down
+1400 down
+1600 down
+1800 down
+2000 down
+2200 down
+2400 down
+2600 down
+2800 down
+3000 down
+3200 down
+3400 down
+3600 down
+3800 down
+4000 down
+4200 down
+4400 down
+4600 down
+4800 down
+5000 down
+6000 up
+7000 down
+8000 end
