@@ -361,7 +361,7 @@ struct item
     const char *help;
 };
 
-static const char *const apkey_choices[] = { "Dial in Av", "Up / Down", "Menu only" };
+static const char *const apkey_choices[] = { "Dial", "Up / Down", "Menu only" };
 static const char *const start_choices[] = { "Off", "When no film", "Always" };
 static const char *const mode_choices[] = { "Basic", "Realistic" };
 static const char *const flip_choices[] = { "Auto", "Normal", "Upside down", "Mirrored" };
@@ -390,7 +390,7 @@ static const struct item lens_items[] =
     { "Lens", IT_INFO, -1, 0, 0, "Adapted manual lenses report no aperture: set it here." },
     { "Aperture", IT_FSTOP, FS_FSTOP, 0, 0, "The f-stop on the lens ring. Shown in the HUD, logged for the lab." },
     { "Widest aperture", IT_FSTOP, FS_LENS_WIDE, 0, 0, "Your manual lens' widest f-stop: the ring stops there." },
-    { "Aperture control", IT_CHOICE, FS_APKEYS, apkey_choices, 3, "How to turn the aperture ring in LiveView." },
+    { "Aperture control", IT_CHOICE, FS_APKEYS, apkey_choices, 3, "Dial: the top one in Av, the rear one in M, through the viewfinder too." },
 };
 
 static const struct item advanced_items[] =

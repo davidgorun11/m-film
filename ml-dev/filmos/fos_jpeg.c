@@ -314,10 +314,14 @@ struct fos_jpeg *fos_jpeg_begin(const char *path, int width, int height, int qua
     if (!w->f) { fos_port_free(j); return 0; }
 
     put16(w, 0xFFD8);
-    /* JFIF */
-    put16(w, 0xFFE0); put16(w, 16);
-    static const uint8_t jfif[14] = { 'J', 'F', 'I', 'F', 0, 1, 1, 0, 0, 1, 0, 1, 0, 0 };
-    for (int i = 0; i < 14; i++) put8(w, jfif[i]);
+    /* JFIF only when there's no EXIF: with EXIF, EXIF comes right after SOI, as camera files have it
+     * (6D2 fork, 86aa642: a JFIF ahead of it and Canon's playback / Wi-Fi may not open the file) */
+    if (!meta)
+    {
+        put16(w, 0xFFE0); put16(w, 16);
+        static const uint8_t jfif[14] = { 'J', 'F', 'I', 'F', 0, 1, 1, 0, 0, 1, 0, 1, 0, 0 };
+        for (int i = 0; i < 14; i++) put8(w, jfif[i]);
+    }
     /* EXIF */
     if (meta)
     {

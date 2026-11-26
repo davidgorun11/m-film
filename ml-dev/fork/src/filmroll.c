@@ -80,7 +80,7 @@ static CONFIG_INT("filmroll.hud",       hud_enabled,      1);
 static CONFIG_INT("filmroll.focus",     focus_screen,     1);
 static CONFIG_INT("filmroll.leds",      leds_on_half,     1);
 static CONFIG_INT("filmroll.wind",      wind_mode,        1);   /* 0 off, 1 reminder (2, from before 0.2: locked the shutter; a reminder now) */
-static CONFIG_INT("filmroll.playlock",  play_lock,        1);
+static CONFIG_INT("filmroll.playlock",  play_lock,        0);   /* off: PLAY on the shooting screen is Canon's playback (6D2 fork) */
 static CONFIG_INT("filmroll.startup",   startup_picker,   2);   /* 0 off, 1 when no film, 2 always */
 static CONFIG_INT("filmroll.bootanim",  boot_anim,        1);
 static CONFIG_INT("filmroll.debug",     debug_log,        1);
@@ -434,9 +434,13 @@ static void film_capture_check()
 /* ---------------------------------------------------------------- aperture */
 
 /* manual (adapted) lenses report no aperture; the user dials it in instead */
+static int canon_raw;                           /* the aperture manual_to_canon last gave Canon */
+
 static int lens_is_manual()
 {
-    return !lens_info.raw_aperture;
+    /* no aperture from the lens, or only the one we gave Canon (6D2 fork, ee7d30e).
+     * ponytail: an EF lens put on at exactly that aperture reads as manual until it is turned */
+    return !lens_info.raw_aperture || (canon_raw && lens_info.raw_aperture == canon_raw);
 }
 
 /* index into fos_fstops for the aperture in use */
@@ -453,9 +457,35 @@ static int current_fstop()
     return best;
 }
 
+static void f10_text(char *buf, int size, int f10);
+
+/* the manual f-stop given to Canon too, so its top LCD, viewfinder and EXIF may show it instead of 00.
+ * ponytail: a probe (6D2 fork, 7fca985): with no lens to report a range Canon may drop it; the log says which */
+static void manual_to_canon()
+{
+    int f10 = fos_fstops[current_fstop()] / 10, best = 1;
+    for (int i = 1; i < APERTURE_ARRAY_LEN; i++)
+        if (ABS(values_aperture[i] - f10) < ABS(values_aperture[best] - f10)) best = i;
+    int raw = codes_aperture[best];
+    int before = lens_info.raw_aperture;
+    canon_raw = raw;
+    prop_request_change_wait(PROP_APERTURE, &raw, 4, 300);
+    static int logged;
+    if (logged < 3)
+    {
+        dbg("aperture to Canon: f/%d raw 0x%x -> camera has 0x%x (was 0x%x)%s", fos_fstops[current_fstop()] / 100, raw,
+            lens_info.raw_aperture, before, lens_info.raw_aperture == raw ? ": taken" : ": dropped");
+        logged++;
+    }
+}
+
 static void step_manual_fstop(int dir)
 {
     manual_fstop = COERCE(current_fstop() + dir, lens_widest, fos_nfstops - 1);
+    char f[8];
+    f10_text(f, sizeof(f), fos_fstops[current_fstop()] / 10);
+    if (!lv) NotifyBox(1500, "f/%s", f);          /* in LiveView the HUD's scale shows it */
+    manual_to_canon();
 }
 
 /* ---------------------------------------------------------------- rolls */
@@ -2275,6 +2305,34 @@ static unsigned int lv_key(unsigned int key)
         return 0;
     }
 
+    /* aperture ring for manual lenses, through the viewfinder as in LiveView: the dial that sets the
+     * aperture of an EF lens in that mode (Av the top dial, M the rear one), never in Canon's menus,
+     * the Q screen or playback (6D2 fork, 7fca985) */
+    if (key >= MODULE_KEY_WHEEL_UP && key <= MODULE_KEY_WHEEL_RIGHT)
+    {
+        static int wlogged;
+        if (wlogged++ < 4)
+            dbg("dial 0x%x: manual %d (aperture 0x%x) roll %d keys %d gui %d menu %d mode %d lv %d shoot %d",
+                key, lens_is_manual(), lens_info.raw_aperture, roll_loaded, aperture_keys,
+                gui_state, gui_menu_shown(), CURRENT_GUI_MODE, lv, shooting_mode);
+    }
+    if (lens_is_manual() && roll_loaded && !ROLL_FINISHED && aperture_keys == 0 && gui_state == GUISTATE_IDLE
+        && !gui_menu_shown() && (lv || CURRENT_GUI_MODE == 0))
+    {
+        int dir = 0;
+        if (shooting_mode == SHOOTMODE_AV)
+            dir = key == MODULE_KEY_WHEEL_RIGHT ? 1 : key == MODULE_KEY_WHEEL_LEFT ? -1 : 0;
+        else if (shooting_mode == SHOOTMODE_M)
+            dir = key == MODULE_KEY_WHEEL_DOWN ? 1 : key == MODULE_KEY_WHEEL_UP ? -1 : 0;
+        if (dir)
+        {
+            step_manual_fstop(dir);
+            leds_until = get_ms_clock() + 2000;
+            hud_dirty = 1;
+            return 0;
+        }
+    }
+
     /* only on the plain LiveView screen: never steal keys from Canon's menus or dialogs */
     if (!lv || !roll_loaded || !display_idle())
         return 1;
@@ -2287,9 +2345,7 @@ static unsigned int lv_key(unsigned int key)
     if (lens_is_manual() && !ROLL_FINISHED)
     {
         int dir = 0;
-        if (aperture_keys == 0 && shooting_mode == SHOOTMODE_AV)
-            dir = (key == MODULE_KEY_WHEEL_RIGHT) ? 1 : (key == MODULE_KEY_WHEEL_LEFT) ? -1 : 0;
-        else if (aperture_keys == 1)
+        if (aperture_keys == 1)
             dir = (key == MODULE_KEY_PRESS_UP) ? 1 : (key == MODULE_KEY_PRESS_DOWN) ? -1 : 0;
         if (dir)
         {
