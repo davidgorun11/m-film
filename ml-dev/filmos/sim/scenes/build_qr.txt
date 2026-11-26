@@ -1,4 +1,4 @@
-# Settings: the last rows, About and DG11's build with its QR code
+# Settings: About at the bottom, then INFO for this build's QR code, then back
 roll 1 14 36
 open home
 500 info
@@ -22,6 +22,6 @@ open home
 4600 down
 4800 down
 5000 down
-6000 up
-7000 down
+6000 info
+7000 info
 8000 end

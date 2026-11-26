@@ -380,8 +380,7 @@ static const struct item settings_items[] =
     { "Manual lens", IT_PAGE, PAGE_LENS, 0, 0, "The aperture of an adapted lens, which the camera can't read." },
     { "Advanced", IT_PAGE, PAGE_ADVANCED, 0, 0, "LEDs, wind lever, start up, screen colour, the debug log." },
     { "Canon menu", IT_ACTION, FA_CANON_MENU, 0, 0, "Leave and open the camera's own menu (format card, RAW...)." },
-    { "About", IT_INFO, -2, 0, 0, FOS_NAME " by HNGSeries " T_DOT " this build by DG11 " T_DOT " Barlow typeface by Jeremy Tribby (SIL OFL)" },
-    { "DG11's build", IT_INFO, -3, 0, 0, "Not the author's release: built and tested on this camera by DG11. Scan the code for it online." },
+    { "About", IT_INFO, -2, 0, 0, FOS_NAME " by HNGSeries, built and tested on this camera by DG11. " FOS_KEY_INFO ": its QR code." },
 };
 
 static const struct item lens_items[] =
@@ -605,6 +604,8 @@ static void page_damage(int what)
     if (what & D_HELP) ui_damage(HELP_RECT_Y0, HINTS_Y);
 }
 
+static int about_qr;                    /* About shows this build's QR code (INFO or SET) */
+
 void page_key(int k)
 {
     const struct item *items = pages[page].items;
@@ -616,11 +617,16 @@ void page_key(int k)
               : k == FK_LEFT || k == FK_RIGHT || k == FK_SET ? D_LIST | D_PREV : D_ALL;
     switch (k)
     {
+        case FK_INFO:
+            if (it->kind == IT_INFO && it->setting == -2) about_qr = !about_qr;
+            break;
         case FK_UP: case FK_WHEEL_L:
+            about_qr = 0;
             if (lens_auto()) break;     /* the other rows are the camera's: nothing to move to */
             if (page_sel > 0) { page_sel--; help_fade = 0; }
             break;
         case FK_DOWN: case FK_WHEEL_R:
+            about_qr = 0;
             if (lens_auto()) break;
             if (page_sel < n - 1) { page_sel++; help_fade = 0; }
             break;
@@ -640,6 +646,7 @@ void page_key(int k)
             /* SET answers on every row (6D2 fork): a value turns to the next one, as ▶ does (choices go
              * round); a page opens; an action runs */
             if (it->kind == IT_TOGGLE || it->kind == IT_CHOICE || it->kind == IT_FSTOP) change(it, 1);
+            else if (it->kind == IT_INFO && it->setting == -2) about_qr = !about_qr;
             else if (it->kind == IT_PAGE) ui_go(SCR_PAGE, it->setting, GO_PUSH);
             else if (it->kind == IT_ACTION && it->setting == ACT_SCR_RESET)
             {
@@ -658,6 +665,7 @@ void page_key(int k)
             }
             break;
         case FK_MENU:
+            about_qr = 0;
             if (pages[page].parent >= 0)
                 ui_go(SCR_PAGE, pages[page].parent | page_row_of(pages[page].parent, page) << 4, GO_POP);
             else ui_go(SCR_HOME, HOME_SETTINGS, GO_POP);
@@ -908,6 +916,15 @@ static void preview_chart()
 #define BUILD_QR_N 29
 static const uint8_t build_qr[] = { 0xfe,0x57,0x73,0xfc,0x12,0x9a,0x10,0x6e,0x82,0x36,0xbb,0x74,0xd4,0x75,0xdb,0xa4,0x3a,0x2e,0xc1,0x46,0x99,0x07,0xfa,0xaa,0xaf,0xe0,0x0b,0x48,0x00,0x96,0xe8,0x85,0x01,0xcb,0x26,0x52,0x6b,0xf3,0xb7,0x3d,0x52,0xff,0x61,0x69,0x26,0x3c,0xe5,0xe0,0xb2,0x4e,0x00,0xeb,0xd8,0x2f,0xf2,0x10,0x3d,0xca,0xd7,0xfd,0x49,0x11,0x4e,0x75,0x7a,0x64,0x80,0x99,0x66,0x09,0xc4,0x9b,0x39,0x65,0x19,0xfa,0x00,0x59,0x3c,0x5f,0xf8,0xe2,0x2a,0x50,0x5c,0x65,0x1f,0xba,0x20,0x4f,0x9d,0xd6,0x04,0xdf,0xae,0x9a,0x06,0x3b,0x04,0x3e,0xb9,0x2f,0xe9,0xae,0xfd,0x00 };
 
+/* a key and what it does, centred on cx: the About panel's way to its QR code and back */
+static void key_caption(int cx, int base, const char *what)
+{
+    int w = fos_text_w(&fos_font_xs, FOS_KEY_INFO, 16) + 14 + 8 + fos_text_w(&fos_font_sm, what, 0);
+    int x = cx - w / 2;
+    x += ui_keycap(x, base, FOS_KEY_INFO) + 8;
+    fos_text(cv, &fos_font_sm, x, base - 1, what, C_TEXT2, OPAQUE, 0);
+}
+
 static void preview_build()
 {
     int cx = PV_X + PV_W / 2, n = BUILD_QR_N, mod = 5, quiet = 4, side = (n + 2 * quiet) * mod;
@@ -918,12 +935,14 @@ static void preview_build()
             fos_fill(cv, x0 + (quiet + i % n) * mod, y0 + (quiet + i / n) * mod, mod, mod, FC(RAMP_GRAY, 8));
     fos_text_c(cv, &fos_font_mdb, cx, y0 + side + 26, "DG11's build", C_TEXT, OPAQUE, 0);
     fos_text_cfit(cv, &fos_font_xs, cx, y0 + side + 46, BUILD_URL, C_TEXT2, OPAQUE, 0, FOS_BIG(FOS_W, PV_W - 16));
+    key_caption(cx, PV_Y + PV_H - 12, "Back to About");
 }
 
-static void preview_about()
+static void preview_about(int qr_key)
 {
     int cx = PV_X + PV_W / 2;
-    fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + PV_H - 14, "ABOUT", C_TEXT3, OPAQUE, 48, FOS_BIG(FOS_W, PV_W - 16));
+    if (qr_key) key_caption(cx, PV_Y + PV_H - 12, "This build online");
+    else fos_text_cfit(cv, &fos_font_xs, cx, PV_Y + PV_H - 14, "ABOUT", C_TEXT3, OPAQUE, 48, FOS_BIG(FOS_W, PV_W - 16));
     ui_aperture(cx, PV_Y + 48, 40, 1700, 5000);
     fos_text_c(cv, &fos_font_lg, cx, PV_Y + 124, FOS_NAME, C_TEXT, OPAQUE, 64);
     char m[48];
@@ -1026,8 +1045,6 @@ static void page_row(const struct item *it, int i, int y, int selected)
         case IT_INFO:
             if (it->setting == -1)
                 snprintf(b, sizeof(b), "%s", fos_port_lens_manual() ? "Manual" : "Auto");
-            else if (it->setting == -3)
-                snprintf(b, sizeof(b), "Scan the code");
             else
                 snprintf(b, sizeof(b), "%s", fos_port_version());
             fos_text_r(cv, &fos_font_md, rx, base, b, C_TEXT3, OPAQUE, 0);
@@ -1066,10 +1083,10 @@ void page_draw()
         else if (st == FS_SIZE) preview_size();
         else if (st == FS_STAMP) preview_stamp();
         else if (st == FS_MODE) preview_mode();
-        else if (it->kind == IT_INFO && it->setting == -3) preview_build();
+        else if (it->kind == IT_INFO && it->setting == -2) { if (about_qr) preview_build(); else preview_about(1); }
         else if (st == VS_FINDER || st == FS_EXPSIM || st == FS_LEDS || st == FS_FOCUS || st == FS_WIND || st == FS_HUD_BATT || st == FS_CANON_OFF)
             preview_finder();
-        else preview_about();
+        else preview_about(0);
         *cv = save;
     }
     if (what & D_HELP)
