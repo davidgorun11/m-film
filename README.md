@@ -1,6 +1,14 @@
-# M-Film for the Canon EOS 6D Mark II
+# M-Film, DG11's build
 
-**A port of [M-Film](https://github.com/HNGSeries/mfilm-canon-film-simulation) to the Canon EOS 6D Mark II (firmware 1.1.1).**
+**An unofficial build of [M-Film](https://github.com/HNGSeries/mfilm-canon-film-simulation) for the Canon EOS 6D Mark II (firmware 1.1.1).**
+
+> [!NOTE]
+> This is not the author's release. It is my own build of HNGSeries' M-Film, made and maintained by
+> DG11 (davidgorun11). For the original, and for the cameras it supports, go to
+> [HNGSeries/mfilm-canon-film-simulation](https://github.com/HNGSeries/mfilm-canon-film-simulation).
+> Problems with this build belong [here](../../issues), not with the author.
+>
+> **Every release here was tested on a real camera before it was published.**
 
 M-Film turns the camera into a film camera. Load a roll from a shelf of films, shoot it, then develop it
 in the camera's darkroom. The original M-Film by HNGSeries runs on Canon's DIGIC 4 and 5 cameras. This fork
@@ -13,8 +21,7 @@ makes it run on the 6D Mark II, a DIGIC 7 body that the original doesn't support
 
 > [!WARNING]
 > **For one camera only: the Canon EOS 6D Mark II with firmware 1.1.1.** Don't put it on any other camera.
-> Magic Lantern on the 6D Mark II is experimental, and this build has been tried on one camera.
-> You use it at your own risk.
+> Magic Lantern on the 6D Mark II is experimental. You use it at your own risk.
 
 ## Install
 
