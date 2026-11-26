@@ -90,7 +90,7 @@ if [ "${1:-}" = "--problems" ]; then
 elif [ "${1:-}" = "--gone" ]; then
     # a roll shot on a film that has since left the shelf (the cinema print films, #126), and one that hasn't
     file=600
-    roll 4 kodak2383 12 2 "2026-09-29 09:00"
+    roll 4 kodakgone 12 2 "2026-09-29 09:00"     # not on the shelf (upstream: kodak2383; this build keeps it)
     roll 5 portra400 12 2 "2026-09-30 09:00"
 else
     roll 9  ektar100       12 12 "2026-10-12 08:30"
