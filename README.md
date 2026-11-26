@@ -15,10 +15,10 @@ in the camera's darkroom.
 
 ## Cameras
 
-| Camera | Firmware | Release | Everything about it |
+| Camera | Firmware | Release | Details |
 |---|---|---|---|
-| EOS 6D Mark II | 1.1.1 | [0.2.1-6d2.3](https://github.com/davidgorun11/m-film/releases/tag/v0.2.1-6d2.3) | [cameras/6d2](cameras/6d2/README.md): install, what's new, buttons |
-| EOS 5D Mark III | 1.2.3 | [0.2.4-5d3.1](https://github.com/davidgorun11/m-film/releases/tag/v0.2.4-5d3.1) | [cameras/5d3](cameras/5d3/README.md): install, what's different, buttons |
+| EOS&nbsp;6D&nbsp;Mark&nbsp;II | 1.1.1 | [0.2.1&#8209;6d2.3](https://github.com/davidgorun11/m-film/releases/tag/v0.2.1-6d2.3) | [install, what's new, buttons](cameras/6d2/README.md) |
+| EOS&nbsp;5D&nbsp;Mark&nbsp;III | 1.2.3 | [0.2.4&#8209;5d3.1](https://github.com/davidgorun11/m-film/releases/tag/v0.2.4-5d3.1) | [install, what's new, buttons](cameras/5d3/README.md) |
 
 [![Download for 6D Mark II](https://img.shields.io/badge/Download%20for%206D%20Mark%20II-eca834?style=for-the-badge)](https://github.com/davidgorun11/m-film/releases/tag/v0.2.1-6d2.3)
 [![Download for 5D Mark III](https://img.shields.io/badge/Download%20for%205D%20Mark%20III-eca834?style=for-the-badge)](https://github.com/davidgorun11/m-film/releases/tag/v0.2.4-5d3.1)
