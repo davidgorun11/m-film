@@ -52,3 +52,26 @@ out/mkcr2: tools/mkcr2.c
 out/devtest-arm: $(DEV) ../*.h out/FOSFILMS.BIN
 	mkdir -p out
 	$(CC) $(CFLAGS) -DFOS_DEV_TEST -DFOS_ARM_UNALIGNED -o $@ $(DEV) -lm
+
+# the simulator and devtest with AddressSanitizer and UndefinedBehaviorSanitizer (and gcc's
+# bounds-strict, where the compiler has it): each stops at the first read or write outside what it
+# has, or an int running over, and says where; memory it never gives back is said as it ends
+# (./cardtest.sh --sanitize). gcc's undefined leaves out the two float checks: a float divided by 0,
+# and a float no int holds made an int, which is INT_MIN on a PC and the nearest int on the camera, so
+# the two print differently. sim-san and devtest-san are built again when the Makefile changes as
+# well: built with its old flags, they would pass for the new ones
+SAN = -fsanitize=address,undefined,float-cast-overflow,float-divide-by-zero \
+      -fno-sanitize-recover=all -fno-omit-frame-pointer \
+      $(shell $(CC) -fsanitize=bounds-strict -x c -c /dev/null -o /dev/null 2>/dev/null && echo -fsanitize=bounds-strict)
+out/sim-san: $(SRC) ../*.h out/FOSFONT.BIN out/FOSFILMS.BIN Makefile
+	mkdir -p out
+	$(CC) $(CFLAGS) $(SAN) -o $@ $(SRC) -lm
+out/devtest-san: $(DEV) ../*.h out/FOSFILMS.BIN Makefile
+	mkdir -p out
+	$(CC) $(CFLAGS) $(SAN) -DFOS_DEV_TEST -o $@ $(DEV) -lm
+
+# the grain the darkroom draws: the film stock's strength at every clump width, its clumps as
+# wide as its grain_size says, and no pattern of their own (#104): ./out/graintest
+out/graintest: graintest.c port_files.c ../fos_dev.c ../fos_print.c ../fos_looks.c ../fos_film.c ../fos_gfx.c ../fos_jpeg.c ../*.h
+	mkdir -p out
+	$(CC) $(CFLAGS) -DFOS_DEV_TEST -o $@ graintest.c port_files.c ../fos_dev.c ../fos_print.c ../fos_looks.c ../fos_film.c ../fos_gfx.c ../fos_jpeg.c -lm

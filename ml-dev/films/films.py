@@ -21,7 +21,8 @@ Keys
   hal_tint    its colour, red green blue; (1.0, 0.28, 0.06) where a stock
               gives none.
   grain       grain amplitude in display units at mid-tones.
-  grain_size  grain clump size in full-resolution pixels.
+  grain_size  grain clump size in pixels of the frame's short side: Darkrooms reads it
+              against the frame's short side, so a print 1/n of that has clumps 1/n as wide.
   soft        optical softness (gaussian sigma, full-res pixels).
   mono        channel mix for black and white stocks (acts like a filter).
   kind        neg, slide, xpro, bw, cine or print: the shelf it stands on in
