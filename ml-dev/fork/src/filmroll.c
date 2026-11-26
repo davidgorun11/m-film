@@ -908,7 +908,10 @@ static void ui_task(int open)
     /* develop each frame, cut short (the camera log of 2026-11-25: gone 0.3 s after it opened, nothing developed):
      * once more when the camera is quiet again; the next frame takes what is left anyway */
     static int develop_retried;
-    if (open == FOS_OPEN_DEVELOP && abort_why && !develop_retried && ROLL_IN_PROGRESS && develop_each)
+    /* cut short means while it developed, or before it began (closed within 5 s); not the screen going dark
+     * over the print once it was done (the camera log of 2026-11-26) */
+    int cut_short = dev_busy || get_ms_clock() - ui_opened_at < 5000;
+    if (open == FOS_OPEN_DEVELOP && abort_why && cut_short && !develop_retried && ROLL_IN_PROGRESS && develop_each)
     {
         develop_retried = 1;
         frame_due = get_ms_clock() + 3000;
