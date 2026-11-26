@@ -94,8 +94,11 @@ def main():
 
     # the films that use it
     from filmluts import FILMS
-    spaces = {f["lut_space"] for f in FILMS.values()}
-    check(spaces == {"photo"}, f"all {len(FILMS)} Film-Luts films are fed it (input spaces: {', '.join(sorted(spaces))})")
+    # (the four cinema print films, which this build keeps, are fed the Cineon log scan they expect instead)
+    spaces = {f["lut_space"] for f in FILMS.values() if f["kind"] != "print"}
+    prints = {f["lut_space"] for f in FILMS.values() if f["kind"] == "print"}
+    check(spaces == {"photo"} and prints <= {"cineon"},
+          f"all {len(FILMS)} Film-Luts films are fed it, the print films Cineon (input spaces: {', '.join(sorted(spaces | prints))})")
     sys.exit(1 if fail else 0)
 
 

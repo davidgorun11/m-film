@@ -160,10 +160,11 @@ def main():
     # ---- every film stock's state on the pages
     import states
     now = states.states()
+    # 72 on this build's shelf: upstream's 68 and the four cinema print films it keeps (DG11's build)
     kinds = [s.kind for s in now.values()]
-    check(len(now) == 68 and kinds.count("measured") == 0 and now["cinestill400t"].kind == "own" and now["hie"].kind == now["ir400"].kind == "impression"
-          and kinds.count("style") == 65,
-          "today no film stock is measured: 65 in the style of their film, 2 impressions of infrared film, 1 M-Film's own")
+    check(len(now) == 72 and kinds.count("measured") == 0 and now["cinestill400t"].kind == "own" and now["hie"].kind == now["ir400"].kind == "impression"
+          and kinds.count("style") == 69,
+          "today no film stock is measured: 69 in the style of their film, 2 impressions of infrared film, 1 M-Film's own")
     pages = states.render(now)
     check(all(p.read_text(encoding="utf-8") == t for p, t in pages.items()) and not states.claims(now),
           f"the {len(pages)} pages in the repository say so, and no text says a film stock matches its film")
@@ -181,11 +182,11 @@ def main():
     then = states.states(refs)
     said = states.render(then)
     films_md, readme, readme_th = (said[HERE.parents[1] / n] for n in ("FILMS.md", "README.md", "README.th.md"))
-    check(then["gold200"].kind == then["hp5"].kind == "measured" and [s.kind for s in then.values()].count("style") == 63
+    check(then["gold200"].kind == then["hp5"].kind == "measured" and [s.kind for s in then.values()].count("style") == 67
           and "<i>Measured against the film · colour 1.2, tone 0.8 · roll shot 2026-11-14, in date</i>" in films_md
           and "<i>Measured against the film · tone 1.4 · roll shot 2026-11-14, expired</i>" in films_md
-          and "**2 of the 68 film stocks are measured against the real film:** Kodak Gold 200, Ilford HP5 Plus 400." in readme
-          and "**มี film stock 2 แบบจาก 68 แบบที่วัดเทียบกับฟิล์มจริงแล้ว:** Kodak Gold 200, Ilford HP5 Plus 400" in readme_th,
+          and "**2 of the 72 film stocks are measured against the real film:** Kodak Gold 200, Ilford HP5 Plus 400." in readme
+          and "**มี film stock 2 แบบจาก 72 แบบที่วัดเทียบกับฟิล์มจริงแล้ว:** Kodak Gold 200, Ilford HP5 Plus 400" in readme_th,
           "two records that claim their film stocks change the pages with no hand edit: FILMS.md has their numbers, the roll's day "
           "and whether it was in date; the READMEs count them, in English and Thai")
     (refs / "hp5-1/measured.txt").unlink()

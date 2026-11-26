@@ -1,0 +1,15 @@
+# for the README: the shelf, along the films and from shelf to shelf
+noroll
+open shelf
+1200 wr
+1900 wr
+2600 wr
+3300 wr
+4300 right
+5300 wr
+6000 wr
+7000 right
+8000 wr
+8700 wr
+9700 left
+10700 end
