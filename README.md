@@ -5,7 +5,7 @@
 | Camera | Firmware | Where |
 |---|---|---|
 | EOS 6D Mark II | 1.1.1 | [Releases](../../releases/latest) — this branch (`6d2`) |
-| EOS 5D Mark III | 1.2.3 | the [`5d3-rainbow-fix`](../../tree/5d3-rainbow-fix) branch — no release yet |
+| EOS 5D Mark III | 1.2.3 | [Release 0.2.4-5d3.1](../../releases/tag/v0.2.4-5d3.1) — the [`5d3-rainbow-fix`](../../tree/5d3-rainbow-fix) branch |
 
 > [!NOTE]
 > This is not the author's release. It is my own build of HNGSeries' M-Film, made and maintained by
@@ -19,20 +19,24 @@ M-Film turns the camera into a film camera. Load a roll from a shelf of films, s
 in the camera's darkroom. The original M-Film by HNGSeries runs on Canon's DIGIC 4 and 5 cameras. This build
 makes it run on the 6D Mark II, a DIGIC 7 body that the original doesn't support, and makes it faster there.
 On the 5D Mark III, which the original supports, it fixes the screen (no rainbow or Canon's menu over the
-film OS on DIGIC 5), reads RAWs faster and develops each frame right after it is shot, if you ask it to.
+film OS on DIGIC 5), reads RAWs faster, develops the new frames at a press of RATE and keeps the original's
+cleaner grain.
 
-[![Download](https://img.shields.io/badge/Download%20for%206D%20Mark%20II-eca834?style=for-the-badge)](../../releases/latest)
+[![Download for 6D Mark II](https://img.shields.io/badge/Download%20for%206D%20Mark%20II-eca834?style=for-the-badge)](../../releases/tag/v0.2.1-6d2.3)
+[![Download for 5D Mark III](https://img.shields.io/badge/Download%20for%205D%20Mark%20III-eca834?style=for-the-badge)](../../releases/tag/v0.2.4-5d3.1)
 [![License GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-3b352f)](LICENSE)
 
 <img src="docs/images/6d2-shelf.png" width="720" alt="The film shelf on the 6D Mark II">
 
 > [!WARNING]
 > **Each zip is for one camera and one firmware only**, as its name says. Don't put it on any other camera.
-> Magic Lantern on the 6D Mark II is experimental. You use it at your own risk.
+> Magic Lantern on the 6D Mark II is experimental. On either camera you use it at your own risk.
 
 ## Install
 
-These steps are for the 6D Mark II. The zip has everything, Magic Lantern included: you don't install Magic Lantern separately.
+Each zip has everything, Magic Lantern included: you don't install Magic Lantern separately.
+
+### 6D Mark II
 
 1. Check the camera's firmware: MENU → the last settings tab → *Firmware ver.* It must say 1.1.1.
 2. Copy your photos off the card, then format the card in the camera.
@@ -49,7 +53,27 @@ To remove M-Film, format the card: a card without Magic Lantern starts the camer
 If the camera doesn't start, take the battery out and remove the card. Without the card it starts as usual.
 `M-FILM-README.txt` in the zip has the details.
 
+### 5D Mark III
+
+1. Check the camera's firmware: MENU → the last settings tab → *Firmware ver.* It must say 1.2.3.
+   A newer Canon firmware (1.3.x) must be taken back to 1.2.3 first: Magic Lantern doesn't run on it.
+2. Copy your photos off the card, then format the card in the camera.
+3. Unzip `M-Film-0.2.4-5d3.1-camera-5D3.123.zip` onto the card's root. The top of the card must show
+   `autoexec.bin`, `ML-SETUP.FIR` and the `ML` folder.
+4. MENU → *Firmware ver.* → update. Follow the screen, then switch the camera off and on.
+5. Press **Trash** to open M-Film. In Canon's menu set Image quality to RAW and Image review to Off.
+
+To update, develop the roll, copy the photos off, format the card in the camera and install again (steps 2 to 4).
+`M-FILM-DG11-README.txt` in the zip lists what this build changes on the 5D Mark III.
+
 ## What's new
+
+**0.2.4-5d3.1, the first for the 5D Mark III:** the author's M-Film 0.2.4 with a clean screen on entering and
+leaving, LiveView off while M-Film is open, RAWs read faster, RATE to develop the roll's new frames (the newest
+first) and the print right after, the rear dial to turn the prints and the top dial to zoom, PLAY for the prints
+(from Canon's menus too) and Zoom for Canon's playback, a manual lens' aperture on the dial through the
+viewfinder, and *About → INFO*: a QR code to this page. The grain stays as in 0.2.4: the author's newer grain
+was too noisy on this camera.
 
 **0.2.1-6d2.3:** the colour of the original M-Film. Each frame is developed with the white balance the camera
 was on, the Film-Luts films get a finished photo's tone, and the glow round highlights is fainter and no
@@ -83,7 +107,10 @@ The technical notes are in [ml-dev/fork/ml-patches/6D2.111](ml-dev/fork/ml-patch
 |---|---|
 | Trash | opens M-Film; inside it, back to the camera (in the Darkroom list it deletes the marked rolls) |
 | MENU | back |
-| PLAY | Prints (on the shooting screen: Canon's playback, unless *PLAY shows prints only* is on) |
+| PLAY | Prints (on the 6D Mark II's shooting screen: Canon's playback, unless *PLAY shows prints only* is on) |
+| RATE (5D Mark III) | on the shooting screen: develops the roll's new frames now |
+| Zoom (5D Mark III) | through the viewfinder: Canon's playback |
+| Dials (5D Mark III) | in Prints: the rear one turns the frames, the top one zooms in |
 | INFO | the screen's second action, shown at the bottom |
 | SET | select, confirm |
 | Half-press, LV | back to shooting |
@@ -95,7 +122,8 @@ docker build -t mfilm-build ml-dev/fork/ml-patches/6D2.111
 docker run --rm -v "$PWD:/w" -w /w mfilm-build bash ml-dev/build_fork.sh 6D2.111
 ```
 
-The card files end up in `ml-dev/out/fork-6D2.111/`.
+The card files end up in `ml-dev/out/fork-6D2.111/`. For the 5D Mark III, check out `5d3-rainbow-fix` and
+build `5D3.123` against a Magic Lantern tree for it (`-e ML_SRC=...`); `ml-dev/build_fork.sh` says how.
 
 ## Problems
 
