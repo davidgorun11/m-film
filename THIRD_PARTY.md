@@ -11,11 +11,18 @@
   repository: the camera build (`ml-dev/films/getluts.py`) and Darkrooms download them.
 - **The colour tables of 4 cinema print film stocks** (Kodak Vision 2383 and 2393, Fujifilm Eterna 3510 and
   3513) are Juan Melara's print film emulation tables, through G'MIC and Film-Luts. No licence is stated for
-  them: they are listed here for credit. This 6D Mark II build keeps them, fed the Cineon log scan they expect
-  (upstream M-Film took them off the shelf, #126).
+  them: they are listed here for credit. This build keeps them on both cameras, fed the Cineon log scan they
+  expect (upstream M-Film took them off the shelf, #126).
+- **The colour tables of 9 film stocks in the 5D Mark III's release** (Kodak Portra 160, 400 and 800, Ektar 100,
+  Gold 200, Kodachrome 64, Fujifilm Pro 400H, Velvia 100 and Provia 100F) are derived from **spektrafilm** by
+  **Andrea Volpato** (https://github.com/andreavolpato/spektrafilm), whose film profiles are shared under
+  **CC BY-SA 4.0**, not GPL-2.0. That release is built from the author's M-Film 0.2.4, which made them. Its zip
+  carries spektrafilm's licence (`SPEKTRAFILM_LICENSE.txt`) and what was changed (`SPEKTRAFILM_CHANGELOG.txt`),
+  and the [`5d3-rainbow-fix`](https://github.com/davidgorun11/m-film/tree/5d3-rainbow-fix) branch's
+  `THIRD_PARTY.md` describes them in full. On the 6D Mark II those 9 films take Pat David's tables, as below.
 - **Barlow** font family (SIL Open Font License 1.1): `ml-dev/filmos/fonts/OFL.txt`.
 - Film names and box art are descriptive and made for this project; they are not affiliated with or endorsed
-  by Kodak, Fujifilm, CineStill, Ilford, Agfa or others. "Canon" and "EOS M" are trademarks of Canon Inc.;
+  by Kodak, Fujifilm, CineStill, Ilford, Agfa or others. "Canon" and "EOS" are trademarks of Canon Inc.;
   this project is not affiliated with Canon. Canon firmware is not included.
 
 ## The film colour tables (CC BY-SA 4.0)

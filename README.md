@@ -24,7 +24,7 @@ in the camera's darkroom.
 [![Download for 5D Mark III](https://img.shields.io/badge/Download%20for%205D%20Mark%20III-eca834?style=for-the-badge)](https://github.com/davidgorun11/m-film/releases/tag/v0.2.4-5d3.1)
 [![License GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-3b352f)](LICENSE)
 
-<img src="docs/images/6d2-shelf.png" width="720" alt="The film shelf">
+<img src="docs/images/shelf.gif" width="720" alt="Going along the film shelf">
 
 > [!WARNING]
 > **Each zip is for one camera and one firmware only**, as its name says. Don't put it on any other camera.
@@ -39,11 +39,13 @@ M-Film. Say which camera, and attach `ML/FILMROLL.LOG` from the card.
 
 - **M-Film** is by **HNGSeries**: the film OS, the 72 films and the darkroom. The original, for the other cameras, is at
   [HNGSeries/mfilm-canon-film-simulation](https://github.com/HNGSeries/mfilm-canon-film-simulation).
-- It is built on [Magic Lantern](https://www.magiclantern.fm/) and its
+- It is built on [Magic Lantern](https://www.magiclantern.fm/), on the 6D Mark II through its
   [magiclantern_simplified](https://github.com/reticulatedpines/magiclantern_simplified) port for newer cameras.
-- The colours of 59 films are adapted from film emulation tables by [Pat David](https://patdavid.net) and are
-  [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), not GPL-2.0 (taken through G'MIC and
-  [Film-Luts](https://github.com/YahiaAngelo/Film-Luts)); the 4 cinema print films use Juan Melara's tables. Those, the
-  fonts and other parts: [THIRD_PARTY.md](THIRD_PARTY.md).
-- License: GPL-2.0 ([LICENSE](LICENSE)).
+- Film colours that are not GPL-2.0 but [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/): film emulation
+  tables by [Pat David](https://patdavid.net) (taken through G'MIC and [Film-Luts](https://github.com/YahiaAngelo/Film-Luts)),
+  59 films on the 6D Mark II and 53 on the 5D Mark III, and on the 5D Mark III 9 films from
+  [spektrafilm](https://github.com/andreavolpato/spektrafilm) by Andrea Volpato. The 4 cinema print films use
+  Juan Melara's tables. Those, the fonts and other parts: [THIRD_PARTY.md](THIRD_PARTY.md).
+- License: GPL-2.0 ([LICENSE](LICENSE)). The source of each release is in this repository: the `6d2` branch for the
+  6D Mark II, the `5d3-rainbow-fix` branch for the 5D Mark III.
 - Not affiliated with Canon, Kodak, Fujifilm or any film maker.
