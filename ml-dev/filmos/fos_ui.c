@@ -591,10 +591,15 @@ void ui_leave()
 
 static void screen_key(int k)
 {
-    /* Prints: the top dial goes into the print and out, the joystick moves and turns frames; a back dial does nothing there */
-    if (screen == SCR_PRINTS && (k == FK_WHEEL_L || k == FK_WHEEL_R) && fos_port_get(FS_TWO_DIALS) > 0) return;
+    /* Prints on a camera with two dials: the top one goes into the print and out (the wheel there),
+     * the back one turns the frames (FK_DIAL_* there), as in Canon's playback */
+    if (screen == SCR_PRINTS && fos_port_get(FS_TWO_DIALS) > 0)
+    {
+        if (k == FK_WHEEL_L || k == FK_WHEEL_R) k = k == FK_WHEEL_L ? FK_DIAL_L : FK_DIAL_R;
+        else if (k == FK_DIAL_L || k == FK_DIAL_R) k = k == FK_DIAL_L ? FK_WHEEL_L : FK_WHEEL_R;
+    }
     /* the top dial is the wheel everywhere but on the shelf, where it changes shelves */
-    if (screen != SCR_SHELF && (k == FK_DIAL_L || k == FK_DIAL_R))
+    else if (screen != SCR_SHELF && (k == FK_DIAL_L || k == FK_DIAL_R))
         k = k == FK_DIAL_L ? FK_WHEEL_L : FK_WHEEL_R;
     switch (screen)
     {

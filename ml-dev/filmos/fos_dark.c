@@ -819,7 +819,7 @@ void develop_enter(int arg)
     for (int i = 0; i < nqueue; i++)
     {
         int ri = roll_index(queue[i]);
-        if (ri >= 0) total_frames += newonly[i] ? 1 : rolls[ri].shot - rolls[ri].developed;     /* each frame: a guess, a burst counts more as it goes */
+        if (ri >= 0) total_frames += rolls[ri].shot - rolls[ri].developed;     /* each frame too: it develops all the roll's undeveloped frames */
     }
     qi = 0; roll_ready = 0; dev = 0;
     last_error[0] = 0;
@@ -1075,7 +1075,7 @@ static void text_lines_c(const struct fos_font *f, int cx, int y, int dy, int w,
 /* how long is left, as the panel says it */
 static void develop_eta(char *buf, int size)
 {
-    int left = total_frames - done_frames;
+    int left = total_frames > done_frames ? total_frames - done_frames : 0;
     int per = ms_per_frame[fos_clamp(dv_made >= 0 ? dv_made : dv_size, 0, FOS_SIZES - 1)];
     int spent = dev ? ui_now - frame_t0 : 0;
     char eta[32];
@@ -1138,6 +1138,7 @@ static void draw_panel()
         fos_text_c(cv, &fos_font_md, PANEL_CX, BAR_Y + 44, dev ? stage_name() : "", SL_TEXT, OPAQUE, 0);
         develop_eta(eta_drawn, sizeof(eta_drawn));
         fos_text_c(cv, &fos_font_sm, PANEL_CX, BAR_Y + 68, eta_drawn, SL_TEXT3, OPAQUE, 0);
+        fos_text_c(cv, &fos_font_sm, PANEL_CX, BAR_Y + 90, "Keep the camera on", SL_TEXT3, OPAQUE, 0);
     }
     ui_damage(64, DRY_Y - 8);
 }
@@ -1164,7 +1165,6 @@ static void develop_hints()
         x += fos_text(cv, &fos_font_sm, x, base - 1, "Stop", SL_TEXT2, OPAQUE, 0) + 22;
         x += ui_keycap(x, base, FOS_KEY_INFO) + 8;
         fos_text(cv, &fos_font_sm, x, base - 1, dv_dimmed ? "Any button: screen back" : "Dim the screen", SL_TEXT2, OPAQUE, 0);
-        fos_text_r(cv, &fos_font_sm, FOS_W - 24, base - 1, "Keep the camera on", SL_TEXT3, OPAQUE, 0);
     }
     ui_damage(HINTS_Y - 8, FOS_H);
 }
@@ -1408,6 +1408,17 @@ void prints_key(int k)
     }
     if (pv_state != PV_SHOW) return;
     int n = pv_frames;
+    /* the back dial: the next or last frame, from inside the print too (the next one opens whole) */
+    if (k == FK_DIAL_L || k == FK_DIAL_R)
+    {
+        if (pv_mode && pv_zlevel > 0)
+        {
+            int to = pv_cur + (k == FK_DIAL_L ? -1 : 1);
+            if (to < 1 || to > n) return;
+            pv_zlevel = 0;
+        }
+        k = k == FK_DIAL_L ? FK_LEFT : FK_RIGHT;
+    }
     if (pv_mode && pv_zlevel > 0)
     {
         /* into the print: the arrows move a quarter of the screen, the wheel goes in and out, the rest come back out */
