@@ -125,6 +125,7 @@ static volatile int hud_dirty = 1;
 #define ROLL_IN_PROGRESS (roll_loaded && frames_shot < roll_exposures)
 
 static volatile int frame_due = 0;      /* develop each frame: ms when to develop the one just shot */
+static const char *abort_why;           /* why the film OS was told to leave, for the log once it has */
 static volatile int end_due = 0;        /* the roll was just finished: ms when to ask about it */
 static volatile int dev_busy = 0;       /* developing: keep the camera awake */
 
@@ -895,6 +896,7 @@ static void ui_task(int open)
     film_ui_open();
     DBG_STATE("film os: open");
     memset(&stat_all, 0, sizeof(stat_all));
+    abort_why = 0;
 
     fos_ui_run(open);
 
@@ -902,6 +904,17 @@ static void ui_task(int open)
     ui_running = 0;
     hud_dirty = 1;
     DBG_STATE("film os: closed");
+    if (abort_why) dbg("film os: left because of %s", abort_why);
+    /* develop each frame, cut short (the camera log of 2026-11-25: gone 0.3 s after it opened, nothing developed):
+     * once more when the camera is quiet again; the next frame takes what is left anyway */
+    static int develop_retried;
+    if (open == FOS_OPEN_DEVELOP && abort_why && !develop_retried && ROLL_IN_PROGRESS && develop_each)
+    {
+        develop_retried = 1;
+        frame_due = get_ms_clock() + 3000;
+        dbg("roll %03d: developing again in 3 s", roll_number);
+    }
+    else if (open == FOS_OPEN_DEVELOP) develop_retried = 0;
     if (stat_all.frames)
     {
         struct fos_stat *s = &stat_all;
@@ -1029,13 +1042,13 @@ int fos_port_key()
 int fos_port_abort()
 {
     if (ui_abort || ml_shutdown_requested)
-        return 1;
+        return abort_why = ui_abort ? "a shutter or REC press" : "ML shutting down", 1;
     /* Canon's playback (FILM_GUIMODE on the 5D3) switches the screen off for
      * a moment as it starts: not a reason to leave in the first 1.5 s */
     if (!DISPLAY_IS_ON && get_ms_clock() - ui_opened_at > 1500)
-        return 1;
+        return abort_why = "the screen went dark", 1;
     if (get_halfshutter_pressed())
-        return 1;
+        return abort_why = "the shutter half pressed", 1;
     /* a Canon dialog took over (low battery, card door...): give the mode
      * request time to land, then let go if Canon keeps something else up */
     static int mismatch_since = 0;
@@ -1048,6 +1061,7 @@ int fos_port_abort()
     {
         dbg("film os: Canon GUI mode %d, leaving", CURRENT_GUI_MODE);
         mismatch_since = 0;
+        abort_why = "Canon's screen";
         return 1;
     }
     return 0;
