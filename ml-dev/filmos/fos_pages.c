@@ -379,7 +379,6 @@ static const struct item settings_items[] =
     { "Film mode", IT_CHOICE, FS_MODE, mode_choices, 2, "Basic: a finished roll goes straight to the darkroom. Realistic: rewind it first." },
     { "Manual lens", IT_PAGE, PAGE_LENS, 0, 0, "The aperture of an adapted lens, which the camera can't read." },
     { "Advanced", IT_PAGE, PAGE_ADVANCED, 0, 0, "LEDs, wind lever, start up, screen colour, the debug log." },
-    { "Canon menu", IT_ACTION, FA_CANON_MENU, 0, 0, "Leave and open the camera's own menu (format card, RAW...)." },
     { "About", IT_INFO, -2, 0, 0, FOS_NAME " by HNGSeries, built and tested on this camera by DG11. " FOS_KEY_INFO ": its QR code." },
 };
 
