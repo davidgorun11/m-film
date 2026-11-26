@@ -24,7 +24,7 @@ static struct dark_mem
     struct fos_lab_roll rolls[MAX_ROLLS];
     uint8_t marked[MAX_ROLLS];
     int queue[MAX_ROLLS];
-    uint8_t newonly[MAX_ROLLS];         /* 2: each frame (FS_DEVELOP): the roll still in the camera, every frame not developed yet, newest first, no contact sheet */
+    uint8_t newonly[MAX_ROLLS];         /* 2: RATE: the roll still in the camera, every frame not developed yet, newest first, no contact sheet */
     struct fos_lab_frame frames[FOS_MAX_FRAMES], meta[FOS_MAX_FRAMES];
     char paths[FOS_MAX_FRAMES][64];
     struct fos_print print;
@@ -528,7 +528,7 @@ static int bar_drawn, last_doing = -1, panel_t, batt_t;
 static char eta_drawn[64];
 static char last_error[72];             /* why the last frame that failed did */
 
-static int back_to_camera;              /* this run is the frame just shot (FS_DEVELOP each frame): it ends in the camera */
+static int back_to_camera;              /* this run is the frame just shot (RATE): it ends in the camera */
 static int newest_done, finished_at;    /* ...the newest frame it developed, and when it was done: then that print opens */
 static int cur_new;                     /* the roll being developed is still in the camera */
 void dark_queue_clear() { nqueue = 0; back_to_camera = 0; if (dm) memset(newonly, 0, sizeof(newonly)); }

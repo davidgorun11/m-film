@@ -98,7 +98,6 @@ static CONFIG_INT("filmroll.hud_style", hud_style,        0);   /* FOS_HUD_*: cl
 static CONFIG_INT("filmroll.hud_batt",  hud_batt,         1);   /* the battery on the HUD */
 static CONFIG_INT("filmroll.single",    single_frame,     0);   /* 1: Drive single frame: a burst drive mode is set to single (6D2 fork) */
 static CONFIG_INT("filmroll.drivesave", drive_saved,     -1);   /* the burst mode single frame replaced, put back when it goes off */
-static CONFIG_INT("filmroll.develop",   develop_each,     0);   /* 1: develop each frame right after it is shot; 0: ask when the roll is finished (6D2 fork) */
 static CONFIG_INT("filmroll.zoom",      print_zoom,       0);   /* a zoom file beside each bigger print; off, faster (6D2 fork) */
 static CONFIG_INT("filmroll.size",      print_size,       1);   /* FOS_SIZE_*: the darkroom's prints (S, M, L) */
 static CONFIG_INT("filmroll.stamp",     date_stamp,       0);   /* the date in the corner of each print */
@@ -124,7 +123,7 @@ static volatile int hud_dirty = 1;
 #define ROLL_FINISHED (roll_loaded && frames_shot >= roll_exposures)
 #define ROLL_IN_PROGRESS (roll_loaded && frames_shot < roll_exposures)
 
-static volatile int frame_due = 0;      /* develop each frame: ms when to develop the one just shot */
+static volatile int frame_due = 0;      /* RATE: ms when to develop the roll's new frames, once the camera is quiet */
 static const char *abort_why;           /* why the film OS was told to leave, for the log once it has */
 static volatile int end_due = 0;        /* the roll was just finished: ms when to ask about it */
 static volatile int dev_busy = 0;       /* developing: keep the camera awake */
@@ -558,8 +557,6 @@ static void record_frame(int file_number)
     }
 
     frames_shot++;
-    if (develop_each)
-        frame_due = get_ms_clock() + 1500;      /* once the camera is quiet: the last frame is asked about instead */
 
     char when[32];
     char aperture[8];
@@ -911,7 +908,7 @@ static void ui_task(int open)
     /* cut short means while it developed, or before it began (closed within 5 s); not the screen going dark
      * over the print once it was done (the camera log of 2026-11-26) */
     int cut_short = dev_busy || get_ms_clock() - ui_opened_at < 5000;
-    if (open == FOS_OPEN_DEVELOP && abort_why && cut_short && !develop_retried && ROLL_IN_PROGRESS && develop_each)
+    if (open == FOS_OPEN_DEVELOP && abort_why && cut_short && !develop_retried && ROLL_IN_PROGRESS)
     {
         develop_retried = 1;
         frame_due = get_ms_clock() + 3000;
@@ -1569,7 +1566,6 @@ static int *setting_var(int s)
         case FS_SIZE:       return &print_size;
         case FS_ZOOM:       return &print_zoom;
         case FS_DRIVE:      return &single_frame;
-        case FS_DEVELOP:    return &develop_each;
         case FS_STAMP:      return &date_stamp;
         case FS_RECENT:     return &recent_films;
         case FS_FADE:       return &page_fade;
@@ -2323,6 +2319,14 @@ static unsigned int lv_key(unsigned int key)
         return 0;
     }
 
+    /* RATE (Canon's only in playback): develop the roll's new frames now, the newest first, then back */
+    if (key == MODULE_KEY_RATE && shooting_screen() && ROLL_IN_PROGRESS)
+    {
+        dbg("key: RATE -> develop");
+        frame_due = get_ms_clock();
+        return 0;
+    }
+
     /* Zoom through the viewfinder: Canon's playback, which PLAY no longer opens */
 #ifdef GUIMODE_PLAY
     if (key == MODULE_KEY_PRESS_ZOOMIN && play_lock && !lv && shooting_screen())
@@ -2599,19 +2603,18 @@ static void filmroll_task()
         }
         else if (end_due && !ROLL_FINISHED) end_due = 0;
 
-        /* develop each frame: the frame just shot, once the camera is quiet (a burst waits for its end and
-         * develops what is new, the newest first) */
-        if (frame_due && get_ms_clock() > frame_due && ROLL_IN_PROGRESS && develop_each)
+        /* RATE: the frames not developed yet, the newest first, once the camera is quiet */
+        if (frame_due && get_ms_clock() > frame_due && ROLL_IN_PROGRESS)
         {
             if (!ui_running && shooting_screen() && !get_halfshutter_pressed() && job_state_ready_to_take_pic())
             {
                 frame_due = 0;
-                dbg("roll %03d frame %d: developing it now", roll_number, frames_shot);
+                dbg("roll %03d: developing its new frames now (RATE)", roll_number);
                 open_ui(FOS_OPEN_DEVELOP);
             }
             else if (get_halfshutter_pressed()) frame_due = get_ms_clock() + 1500;     /* still shooting */
         }
-        else if (frame_due && !(ROLL_IN_PROGRESS && develop_each)) frame_due = 0;
+        else if (frame_due && !ROLL_IN_PROGRESS) frame_due = 0;
         if (k % 20 == 0 && !ui_running && shooting_screen() && job_state_ready_to_take_pic())
             drive_step();                   /* every second */
         if (k % 2 == 0)

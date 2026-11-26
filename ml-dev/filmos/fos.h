@@ -125,7 +125,6 @@ enum
                            the HUD, #67); the port answers -1 where that is always so: not shown */
     FS_ZOOM,            /* a zoom file beside each medium or large print, to zoom into in Prints (off: develops faster) */
     FS_DRIVE,           /* 0 the camera's drive mode, 1 single frame: a burst mode is set to single while it is on */
-    FS_DEVELOP,         /* when to develop: 0 once the roll is finished (asks), 1 each frame right after it is shot */
     FS_TWO_DIALS,       /* read only: 1 a top dial (FK_DIAL_*) and a back one (FK_WHEEL_*) */
     FS_COUNT
 };
@@ -174,7 +173,7 @@ enum { FOS_OPEN_SHELF, FOS_OPEN_HOME, FOS_OPEN_BOOT, FOS_OPEN_BOOT_LV,
        FOS_OPEN_PRINTS,     /* PLAY: the latest prints */
        FOS_OPEN_END,        /* the roll has just been finished */
        FOS_OPEN_DARKROOM,
-       FOS_OPEN_DEVELOP };  /* develop the frame just shot (FS_DEVELOP each frame), then back to the camera */
+       FOS_OPEN_DEVELOP };  /* RATE: develop the roll's new frames, newest first, then back to the camera */
 
 /* ---------------------------------------------------------------- the port */
 

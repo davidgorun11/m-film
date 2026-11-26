@@ -43,7 +43,6 @@ MODULE_CONFIGS_START()
     MODULE_CONFIG(need_wind)
     MODULE_CONFIG(print_zoom)
     MODULE_CONFIG(single_frame)
-    MODULE_CONFIG(develop_each)
     MODULE_CONFIG(drive_saved)
 MODULE_CONFIGS_END()
 

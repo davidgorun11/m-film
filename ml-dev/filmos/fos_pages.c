@@ -367,7 +367,6 @@ static const char *const mode_choices[] = { "Basic", "Realistic" };
 static const char *const flip_choices[] = { "Auto", "Normal", "Upside down", "Mirrored" };
 static const char *const size_choices[] = { "Small", "Medium", "Large" };
 static const char *const drive_choices[] = { "Camera", "Single frame" };
-static const char *const develop_choices[] = { "End of roll", "Each frame" };
 
 static const struct item settings_items[] =
 {
@@ -375,7 +374,6 @@ static const struct item settings_items[] =
     { "Exposure simulation", IT_TOGGLE, FS_EXPSIM, 0, 0, "On: LiveView shows the exposure you'll get. Off: bright, to focus a manual lens." },
     { "Print size", IT_CHOICE, FS_SIZE, size_choices, FOS_SIZES, "How big the darkroom develops. Bigger prints zoom in further and take longer." },
     { "Zoom in Prints", IT_TOGGLE, FS_ZOOM, 0, 0, "Medium and Large prints: look closer in Prints. Off: develops faster, a file less." },
-    { "Develop", IT_CHOICE, FS_DEVELOP, develop_choices, 2, "End of roll: asks when it is shot. Each frame: the print right after the shot." },
     { "Drive", IT_CHOICE, FS_DRIVE, drive_choices, 2, "Single frame: one frame a press, even if the camera is set to a burst. Camera: as set there." },
     { "Date stamp", IT_TOGGLE, FS_STAMP, 0, 0, "The day it was shot in the corner of each print, like a compact's data back." },
     { "Film mode", IT_CHOICE, FS_MODE, mode_choices, 2, "Basic: a finished roll goes straight to the darkroom. Realistic: rewind it first." },
