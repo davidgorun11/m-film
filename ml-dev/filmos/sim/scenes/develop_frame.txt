@@ -1,0 +1,6 @@
+# Develop: Each frame. Frame 8 of roll 011 (Gold 200, on mkcard's card) has just been shot: the film OS
+# opens on the darkroom with it, then on its print; SET there goes back to the camera
+roll 3 8 12 11
+open develop
+30000 set
+31000 end

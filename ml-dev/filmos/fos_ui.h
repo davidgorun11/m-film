@@ -135,6 +135,7 @@ void dark_draw();
 /* developing the rolls queued with dark_queue (arg unused) */
 void dark_queue_clear();
 void dark_queue_add(int roll);
+void dark_queue_frame(int roll);    /* the frame just shot: what has no print yet, newest first, ending back in the camera */
 void develop_enter(int arg);
 void develop_leave();
 void develop_key(int key);
@@ -144,6 +145,7 @@ void develop_draw();
 /* prints: arg is a roll number (0: the newest developed); PRINTS_ALONE
  * or-ed in when opened by PLAY from the camera */
 #define PRINTS_ALONE 0x10000
+#define PRINTS_FRAME(f) ((f) << 20)    /* or-ed in: open on that frame of the roll, and leave from it (FS_DEVELOP each frame) */
 void prints_enter(int arg);
 void prints_leave();
 void prints_key(int key);

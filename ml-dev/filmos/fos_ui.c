@@ -763,6 +763,7 @@ void fos_ui_run(int open)
             case FOS_OPEN_PRINTS:   screen = SCR_PRINTS; prints_enter(PRINTS_ALONE); break;
             case FOS_OPEN_END:      screen = SCR_ROLL; roll_enter(1); break;
             case FOS_OPEN_DARKROOM: screen = SCR_DARK; dark_enter(0); break;
+            case FOS_OPEN_DEVELOP:  screen = SCR_DEVELOP; dark_queue_clear(); dark_queue_frame(ui_roll.number); develop_enter(0); break;
             default:                screen = SCR_SHELF; shelf_enter(0); break;
         }
     }

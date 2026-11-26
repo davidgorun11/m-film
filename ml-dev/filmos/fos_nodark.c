@@ -48,6 +48,7 @@ void dark_draw() { nd_draw(); }
 
 void dark_queue_clear() {}
 void dark_queue_add(int roll) {}
+void dark_queue_frame(int roll) {}
 void develop_enter(int arg) { nd_bake(); }
 void develop_leave() {}
 void develop_key(int k) { nd_key(k); }

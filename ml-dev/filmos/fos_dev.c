@@ -1,3 +1,7 @@
+/* the darkroom is where the camera spends its seconds: this file is built for speed, the rest of ML for size */
+#ifdef CONFIG_MAGICLANTERN
+#pragma GCC optimize ("O2")
+#endif
 /* fos_dev: developing film in the camera, a frame at a time.
  *
  * The frame's CR2 is read a chunk at a time and its lossless JPEG decoded;

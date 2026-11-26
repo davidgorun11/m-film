@@ -24,6 +24,7 @@ static struct dark_mem
     struct fos_lab_roll rolls[MAX_ROLLS];
     uint8_t marked[MAX_ROLLS];
     int queue[MAX_ROLLS];
+    uint8_t newonly[MAX_ROLLS];         /* 2: each frame (FS_DEVELOP): the roll still in the camera, every frame not developed yet, newest first, no contact sheet */
     struct fos_lab_frame frames[FOS_MAX_FRAMES], meta[FOS_MAX_FRAMES];
     char paths[FOS_MAX_FRAMES][64];
     struct fos_print print;
@@ -31,6 +32,7 @@ static struct dark_mem
 #define rolls   (dm->rolls)
 #define marked  (dm->marked)
 #define queue   (dm->queue)
+#define newonly (dm->newonly)
 #define pv_meta (dm->meta)
 #define pv_print (dm->print)
 
@@ -526,8 +528,13 @@ static int bar_drawn, last_doing = -1, panel_t, batt_t;
 static char eta_drawn[64];
 static char last_error[72];             /* why the last frame that failed did */
 
-void dark_queue_clear() { nqueue = 0; }
-void dark_queue_add(int roll) { if (dark_mem() && nqueue < MAX_ROLLS) queue[nqueue++] = roll; }
+static int back_to_camera;              /* this run is the frame just shot (FS_DEVELOP each frame): it ends in the camera */
+static int newest_done, finished_at;    /* ...the newest frame it developed, and when it was done: then that print opens */
+static int cur_new;                     /* the roll being developed is still in the camera */
+void dark_queue_clear() { nqueue = 0; back_to_camera = 0; if (dm) memset(newonly, 0, sizeof(newonly)); }
+void dark_queue_add(int roll) { if (dark_mem() && nqueue < MAX_ROLLS) { newonly[nqueue] = 0; queue[nqueue++] = roll; } }
+/* the frame just shot, straight from the camera: what has no print yet, newest first, then back to the camera */
+void dark_queue_frame(int roll) { if (dark_mem() && nqueue < MAX_ROLLS) { newonly[nqueue] = 2; queue[nqueue++] = roll; back_to_camera = 1; } }
 
 static int file_exists(const char *path)
 {
@@ -590,6 +597,7 @@ static void next_job()
         if (!roll_ready)
         {
             cur_roll = queue[qi];
+            cur_new = newonly[qi];
             int ri = roll_index(cur_roll);
             cur_film = ri >= 0 ? rolls[ri].film : 0;
             cur_gone = ri >= 0 && rolls[ri].gone[0] ? rolls[ri].gone : 0;
@@ -625,7 +633,8 @@ static void next_job()
         }
         while (fi < nframes)
         {
-            const struct fos_lab_frame *f = &dm->frames[fi++];
+            const struct fos_lab_frame *f = &dm->frames[cur_new ? nframes - 1 - fi : fi];     /* in the camera: the newest first */
+            fi++;
             fos_lab_print_path(path, sizeof(path), cur_roll, f->no);
             /* its JPEG in DCIM: IMG_0102.CR2 -> IMG_0102.JPG */
             char jpeg[160] = "";
@@ -649,6 +658,7 @@ static void next_job()
                 done_frames++;
                 continue;
             }
+            if (f->missing && cur_new) continue;       /* in the camera: a frame with no RAW (shot as JPEG) is not an error */
             if (f->missing)
             {
                 char msg[120];
@@ -700,7 +710,8 @@ static void next_job()
             failed_frames++;
             done_frames++;
         }
-        /* the roll is through: its contact sheet */
+        /* the roll is through: its contact sheet (not for a roll still in the camera: it is not through) */
+        if (cur_new) { rolls_done++; qi++; roll_ready = 0; continue; }
         const char *pp[FOS_MAX_FRAMES];
         for (int i = 0; i < nframes; i++)
         {
@@ -714,6 +725,7 @@ static void next_job()
         roll_ready = 0;
     }
     finished = 1;
+    finished_at = ui_now;
     cur_frame = 0;
     dv_dirty |= DV_PANEL | DV_BAR | DV_HINTS | DV_TRAY;
     fos_dev_release();
@@ -732,6 +744,7 @@ static void frame_finished(int ok)
         ms_per_frame[size] = done_frames - failed_frames < 3 ? took : (ms_per_frame[size] * 3 + took) / 4;
         snprintf(msg, sizeof(msg), "darkroom: roll %03d frame %d developed in %d ms, %d x %d", cur_roll, cur_frame, took, dv_w, dv_h);
         fos_port_log(msg);
+        if (cur_frame > newest_done) newest_done = cur_frame;
         /* onto the paper, and into the row */
         char path[64];
         fos_lab_print_path(path, sizeof(path), cur_roll, cur_frame);
@@ -782,6 +795,7 @@ static void room_battery()
 
 static void develop_bake()
 {
+    newest_done = 0;
     ui_to_bg(1);
     /* the room: dark, the safelight from above */
     fos_vgrad(cv, 0, 0, FOS_W, FOS_H, RAMP_RED, LV12(30), LV12(7));
@@ -805,7 +819,7 @@ void develop_enter(int arg)
     for (int i = 0; i < nqueue; i++)
     {
         int ri = roll_index(queue[i]);
-        if (ri >= 0) total_frames += rolls[ri].shot - rolls[ri].developed;
+        if (ri >= 0) total_frames += newonly[i] ? 1 : rolls[ri].shot - rolls[ri].developed;     /* each frame: a guess, a burst counts more as it goes */
     }
     qi = 0; roll_ready = 0; dev = 0;
     last_error[0] = 0;
@@ -858,11 +872,12 @@ void develop_key(int k)
     }
     if (asking_stop)
     {
-        if (k == FK_SET) { asking_stop = 0; ui_go(SCR_DARK, cur_roll, GO_FADE); }
+        if (k == FK_SET) { asking_stop = 0; if (back_to_camera) ui_leave(); else ui_go(SCR_DARK, cur_roll, GO_FADE); }
         else if (k == FK_MENU) asking_stop = 0;
         ui_clobbered = 1;
         return;
     }
+    if (finished && back_to_camera && (k == FK_MENU || k == FK_SET || k == FK_PLAY)) { ui_leave(); return; }     /* nothing developed */
     switch (k)
     {
         case FK_MENU:
@@ -892,6 +907,12 @@ int develop_update(int dt)
         /* no memory for the scene: say so and stop */
         if (!finished) { finished = 1; fos_port_action(FA_BUSY, 0, 0); ui_toast("Not enough memory to develop"); }
         return 0;
+    }
+    /* each frame developed: once the print has gone to dry, it opens whole; MENU, SET or PLAY there go back to the camera */
+    if (finished && back_to_camera && newest_done && ui_now - finished_at > 1500)
+    {
+        ui_go(SCR_PRINTS, (queue[0] & 0xFFFF) | PRINTS_ALONE | PRINTS_FRAME(newest_done), GO_FADE);
+        return 1;
     }
     int moving = spring_step(&stop_sheet, asking_stop ? 1 : 0, dt, 3.0f, 0.95f);
     if (moving) ui_clobbered = 1;
@@ -1125,7 +1146,12 @@ static void develop_hints()
 {
     ui_bg_restore(0, HINTS_Y - 8, FOS_W, FOS_H - HINTS_Y + 8);
     int base = HINTS_Y + 23, x = 24;
-    if (finished)
+    if (finished && back_to_camera)
+    {
+        x += ui_keycap(x, base, "SET") + 8;
+        fos_text(cv, &fos_font_sm, x, base - 1, "Back to the camera", SL_TEXT2, OPAQUE, 0);
+    }
+    else if (finished)
     {
         x += ui_keycap(x, base, "SET") + 8;
         x += fos_text(cv, &fos_font_sm, x, base - 1, "See the prints", SL_TEXT2, OPAQUE, 0) + 22;
@@ -1186,6 +1212,10 @@ enum { PV_WAIT, PV_IN, PV_SHOW, PV_OUT, PV_NONE };
 enum { NEXT_LOAD, NEXT_BACK };
 
 static int pv_roll;                     /* index into rolls */
+static int pv_one;                      /* opened on the frame just developed (each frame): no contact sheet, the keys go back */
+/* a roll still in the camera has prints but no contact sheet yet: Prints shows it frame by frame */
+static int pv_nosheet() { return pv_roll >= 0 && !rolls[pv_roll].sheet; }
+static int newest_print(int i);
 static int pv_alone;
 static int pv_mode;                     /* 0 the contact sheet, 1 a frame */
 static int pv_cur;                      /* the frame (1..), also the sheet's cursor */
@@ -1294,10 +1324,23 @@ static void pv_palette(int k)
     else fos_port_photo(black, 1, k);
 }
 
+/* the newest frame of roll index i with a print (1 when none) */
+static int newest_print(int i)
+{
+    char path[64];
+    for (int f = rolls[i].shot; f > 1; f--)
+    {
+        fos_lab_print_path(path, sizeof(path), rolls[i].number, f);
+        if (file_exists(path)) return f;
+    }
+    return 1;
+}
+
 void prints_enter(int arg)
 {
     pv_alone = (arg & PRINTS_ALONE) != 0;
-    arg &= ~PRINTS_ALONE;
+    int frame = arg >> 20;
+    arg &= 0xFFFF;
     pv_have = 0;
     dark_mem();
     rescan();
@@ -1306,6 +1349,9 @@ void prints_enter(int arg)
     pv_roll = i;
     pv_mode = 0;
     pv_cur = 1;
+    pv_one = frame > 0 && i >= 0 && rolls[i].number == arg;
+    if (pv_one) { pv_mode = 1; pv_cur = frame; }
+    else if (pv_nosheet()) { pv_mode = 1; pv_cur = newest_print(i); }
     pv_frames = i >= 0 ? rolls[i].shot : 0;
     if (i >= 0) fos_lab_frames(rolls[i].number, pv_meta, FOS_MAX_FRAMES);
     pv_have = 0;
@@ -1423,12 +1469,16 @@ void prints_key(int k)
                     pv_roll = to;
                     pv_frames = rolls[to].shot;
                     pv_cur = 1;
+                    pv_mode = 0;
+                    if (pv_nosheet()) { pv_mode = 1; pv_cur = newest_print(to); }
                     fos_lab_frames(rolls[to].number, pv_meta, FOS_MAX_FRAMES);
                     pv_go(NEXT_LOAD);
                 }
             }
             break;
         case FK_SET:
+            if (pv_one) { pv_go(NEXT_BACK); break; }
+            if (pv_nosheet()) break;            /* no sheet to go to */
             pv_mode = !pv_mode;
             pv_go(NEXT_LOAD);
             break;
@@ -1438,7 +1488,7 @@ void prints_key(int k)
             pv_dirty = 1;
             break;
         case FK_MENU:
-            if (pv_mode) { pv_mode = 0; pv_go(NEXT_LOAD); }
+            if (pv_mode && !pv_one && !pv_nosheet()) { pv_mode = 0; pv_go(NEXT_LOAD); }
             else pv_go(NEXT_BACK);
             break;
         case FK_PLAY:
@@ -1612,7 +1662,10 @@ void prints_draw()
         snprintf(b, sizeof(b), "%s " T_DOT " frame %d of %d", fos_films[r->film].name, pv_cur, pv_frames);
         x += 14 + ui_photo_text(&fos_font_sm, x + 14, y + 28, b, 0, 0);
         const char *hint = pv_note[0] ? pv_note : zoomed ? "ARROWS MOVE   SET OUT" :
-                           !pv_mode ? "SET OPEN   WHEEL ROLLS" : pv_znsteps ? "WHEEL ZOOM   SET SHEET" : "SET SHEET   " FOS_KEY_INFO " HIDE";
+                           !pv_mode ? "SET OPEN   WHEEL ROLLS" :
+                           pv_one ? (pv_znsteps ? "WHEEL ZOOM   SET CAMERA" : "SET CAMERA   " FOS_KEY_INFO " HIDE") :
+                           pv_nosheet() ? (pv_znsteps ? "WHEEL ZOOM   " FOS_KEY_INFO " HIDE" : FOS_KEY_INFO " HIDE") :
+                           pv_znsteps ? "WHEEL ZOOM   SET SHEET" : "SET SHEET   " FOS_KEY_INFO " HIDE";
         int hint_w = fos_text_w(&fos_font_xs, hint, pv_note[0] ? 40 : 0);
         if (m && m->when[0])
         {
