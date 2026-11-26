@@ -1,0 +1,5 @@
+# the shelf as it opens by itself at start up (no roll), then MENU: M-Film's home, not out to the camera
+noroll
+open shelf
+1500 menu
+3000 end

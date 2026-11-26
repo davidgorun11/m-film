@@ -571,8 +571,9 @@ void shelf_key(int k)
             else start_loading();
             break;
         case FK_MENU:
-            if (ui_from() == SCR_HOME) ui_go(SCR_HOME, HOME_FILM, GO_POP);
-            else ui_leave();
+            /* back to M-Film's home, also when the shelf opened by itself at start up: leaving there
+             * left no way into the settings but Trash again (5D3, 2026-11-26) */
+            ui_go(SCR_HOME, HOME_FILM, GO_POP);
             break;
         case FK_PLAY:
             if (has_samples)
