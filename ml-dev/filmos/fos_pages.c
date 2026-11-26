@@ -405,7 +405,7 @@ static const struct item advanced_items[] =
     { "Hide Canon's graphics", IT_TOGGLE, FS_CANON_OFF, 0, 0, "Canon's exposure scale and icons stay off the viewfinder. Its focus frame goes too." },
     { "Screen colour", IT_PAGE, PAGE_SCREEN, 0, 0, "Match these colours to what you see around you." },
     { "Screen orientation", IT_CHOICE, FS_SCR_FLIP, flip_choices, 4, "Auto follows the hinge. Set one if the screen shows the wrong way round." },
-    { "PLAY shows prints only", IT_TOGGLE, FS_PLAYLOCK, 0, 0, "Canon's playback would show frames the darkroom hasn't developed." },
+    { "PLAY shows prints only", IT_TOGGLE, FS_PLAYLOCK, 0, 0, "Canon's playback is on Zoom then, through the viewfinder." },
     { "Re-apply film settings", IT_ACTION, FA_REAPPLY, 0, 0, "After changing picture style, white balance or ISO by hand." },
     { "Debug log", IT_TOGGLE, FS_DEBUG, 0, 0, "Writes ML/FILMROLL.LOG for troubleshooting." },
 };

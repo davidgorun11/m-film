@@ -80,7 +80,7 @@ static CONFIG_INT("filmroll.hud",       hud_enabled,      1);
 static CONFIG_INT("filmroll.focus",     focus_screen,     1);
 static CONFIG_INT("filmroll.leds",      leds_on_half,     1);
 static CONFIG_INT("filmroll.wind",      wind_mode,        1);   /* 0 off, 1 reminder (2, from before 0.2: locked the shutter; a reminder now) */
-static CONFIG_INT("filmroll.playlock",  play_lock,        0);   /* off: PLAY on the shooting screen is Canon's playback (6D2 fork) */
+static CONFIG_INT("filmroll.playlock",  play_lock,        1);   /* PLAY opens the latest prints, also in Canon's menus; Zoom is Canon's playback (DG11) */
 static CONFIG_INT("filmroll.startup",   startup_picker,   2);   /* 0 off, 1 when no film, 2 always */
 static CONFIG_INT("filmroll.bootanim",  boot_anim,        1);
 static CONFIG_INT("filmroll.debug",     debug_log,        1);
@@ -2313,12 +2313,22 @@ static unsigned int lv_key(unsigned int key)
 
     /* PLAY: the developed prints, never Canon's playback of what the
      * darkroom hasn't seen yet */
-    if (key == MODULE_KEY_PLAY && play_lock && shooting_screen())
+    if (key == MODULE_KEY_PLAY && play_lock && !is_movie_mode() && (shooting_screen() || gui_state != GUISTATE_IDLE))
     {
-        dbg("key: PLAY -> prints");
+        dbg("key: PLAY -> prints (gui %d)", CURRENT_GUI_MODE);
         open_ui(FOS_OPEN_PRINTS);
         return 0;
     }
+
+    /* Zoom through the viewfinder: Canon's playback, which PLAY no longer opens */
+#ifdef GUIMODE_PLAY
+    if (key == MODULE_KEY_PRESS_ZOOMIN && play_lock && !lv && shooting_screen())
+    {
+        dbg("key: Zoom -> Canon's playback");
+        SetGUIRequestMode(GUIMODE_PLAY);
+        return 0;
+    }
+#endif
 
     /* aperture ring for manual lenses, through the viewfinder as in LiveView: the dial that sets the
      * aperture of an EF lens in that mode (Av the top dial, M the rear one), never in Canon's menus,
